@@ -1,5 +1,4 @@
-from helpers import load_dataset_from_dir, extract_answer_qwen, initialize_clients, consistency_evaluator_doctype
-from sklearn.metrics import accuracy_score, balanced_accuracy_score
+from helpers import load_dataset_from_dir, initialize_clients, consistency_evaluator_doctype, ranking_evaluator
 import argparse
 
 parser = argparse.ArgumentParser(description="arguments for evaluatiing factuality")
@@ -13,7 +12,9 @@ args = parser.parse_args()
 
 
 if __name__ == "__main__":
-    if args.dataset_name == "cogensumm" or args.dataset_name == "factcc" or args.dataset_name == "polytope" or args.dataset_name == "summeval" or args.dataset_name == "xsumfaith":
+    if (args.dataset_name == "cogensumm" or args.dataset_name == "factcc" or args.dataset_name == "polytope" or args.dataset_name == "summeval" or args.dataset_name == "xsumfaith") and args.task == "consistency":
         dataset = load_dataset_from_dir(f"data/{args.dataset_name}_{args.split}.jsonl", type='json', split='train')
-    if args.task == "consistency" and (args.dataset_name == "cogensumm" or args.dataset_name == "factcc" or args.dataset_name == "polytope" or args.dataset_name == "summeval" or args.dataset_name == "xsumfaith"):
         consistency_evaluator_doctype(dataset, client=initialize_clients(args.llm_provider), model_name=args.model_name)
+    elif args.task == "ranking" or args.dataset_name == "frank":
+        dataset = load_dataset_from_dir(f"data/benchmark_data.json", type='json', split='train')
+        ranking_evaluator(dataset, client=initialize_clients(args.llm_provider), model_name=args.model_name)

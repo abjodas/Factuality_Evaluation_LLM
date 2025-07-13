@@ -5,8 +5,12 @@ from dotenv import load_dotenv
 import re
 import os
 from tqdm import tqdm, trange
-from template import CONSISTENCY_COT_PROMPT
+from template import CONSISTENCY_COT_PROMPT, RANKING_PROMPT
 from sklearn.metrics import accuracy_score, balanced_accuracy_score
+import numpy as np
+import pandas as pd
+from datasets import load_dataset
+from scipy.stats import pearsonr, spearmanr
 
 # Load environment variables
 load_dotenv()
@@ -148,3 +152,38 @@ def consistency_evaluator_doctype(dataset, client, model_name='qwen'):
             t.set_postfix(accuracy=balanced_accuracy_score(predictions, true_labels))
    print(f"Final Accuracy: {accuracy_score(predictions, true_labels)}")
    print(f"Final Balanced Accuracy: {balanced_accuracy_score(predictions, true_labels)}")
+
+
+def ranking_evaluator(dataset, client, model_name='deepseek-chat'):
+   predictions = []
+   model_names = []
+   hashes = []
+   with trange(len(dataset)) as t:
+      for i in t:
+         messages = [
+            {"role": "system", "content": "You are a helpful assistant"},
+            {"role": "user", "content": RANKING_PROMPT.format(article=dataset[i]['article'], summary=dataset[i]['summary'])}
+         ]
+         response = client.chat.completions.create(model=model_name, messages=messages, stream=False)
+         print(response.choices[0].message.content)
+         predictions.append(np.float64(response.choices[0].message.content))
+         model_names.append(dataset[i]['model_name'])
+         hashes.append(dataset[i]['hash'])
+         print("-"*100)
+   human_annot = load_dataset('json', data_files='data/human_annotations.json', split='train')
+   human_df = pd.DataFrame(human_annot)
+   predictions_df = pd.DataFrame({
+      'hash': hashes,
+      'model_name': model_names,
+      'prediction_score': predictions
+   })
+   human_labels_df = human_df[['hash', 'model_name', 'Factuality']]
+   merged_df = pd.merge(predictions_df, human_labels_df, on=['hash', 'model_name'])
+   analysis_df = merged_df.dropna(subset=['prediction_score', 'Factuality'])
+
+   llm_scores = analysis_df['prediction_score']
+   human_scores = analysis_df['Factuality']
+   pearson_corr, pearson_p_value = pearsonr(llm_scores, human_scores)
+   spearman_corr, spearman_p_value = spearmanr(llm_scores, human_scores)
+   print(f"Pearson Correlation (ρ): {pearson_corr:.4f}")
+   print(f"Spearman Correlation (r): {spearman_corr:.4f}")
