@@ -2,6 +2,7 @@ from datasets import load_dataset
 from openai import OpenAI
 from together import Together
 import re
+import os
 
 def load_dataset_from_dir(path, type= 'json', split='train'):
     """
@@ -74,6 +75,27 @@ def extract_answer_qwen(text):
     return 1
   else:
     return 0
+  
+def initialize_clients(name='gpt'):
+  gpt_client = OpenAI(api_key=os.getenv('gpt_api_key'))
+  dp_client = OpenAI(api_key=os.getenv('dp_api_key'), base_url="https://api.deepseek.com")
+  lg_client = Together(api_key=os.getenv('tohether_api_key'))
+  llama_client = Together(api_key=os.getenv('tohether_api_key'))
+  qwen_client = OpenAI(
+    # If environment variables are not configured, replace the following line with: api_key="sk-xxx",
+    api_key="sk-cfe35a9b04034f8597ce1fd45b8bf45c", 
+    base_url="https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+)
+  if name == 'gpt':
+    return gpt_client
+  elif name == 'dp':
+    return dp_client
+  elif name == 'lg':
+    return lg_client
+  elif name == 'llama':
+    return llama_client
+  else:
+    return qwen_client
 extract_answer_qwen("""
 1. **Identify the key claim in the summary:**  
    The summary states, *"the bolton boxer had hoped to take [on] floyd mayweather in a $300million mega-fight."*
