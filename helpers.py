@@ -3,6 +3,9 @@ from openai import OpenAI
 from together import Together
 import re
 import os
+from tqdm import tqdm, trange
+from template import CONSISTENCY_COT_PROMPT
+from sklearn.metrics import accuracy_score, balanced_accuracy_score
 
 def load_dataset_from_dir(path, type= 'json', split='train'):
     """
@@ -118,3 +121,25 @@ extract_answer_qwen("""
 def most_frequent(List):
     return max(set(List), key=List.count)
 
+def consistency_evaluator_doctype(dataset, client, model_name='qwen'):
+   predictions = []
+   true_labels = []
+   with trange(len(dataset)) as t:
+      for i in t:
+         response = client.chat.completions.create(
+            model=model_name,
+            messages=[
+               {"role": "system", "content": "You are a helpful assistant"},
+               {"role": "user", "content": CONSISTENCY_COT_PROMPT.format(article=dataset[i]['document'], summary=dataset[i]['claim'])},
+            ],
+            stream=False
+         )
+         
+         prediction = extract_answer_qwen(response.choices[0].message.content)
+         predictions.append(prediction)
+         true_labels.append(dataset[i]['label'])
+         print(response.choices[0].message.content)
+         print('-'*100)
+         print(f"""Prediction: {prediction} True Label: {dataset[i]['label']}""")
+         if i%5 == 0 and i > 0:
+            t.set_postfix(accuracy=balanced_accuracy_score(predictions, true_labels))
