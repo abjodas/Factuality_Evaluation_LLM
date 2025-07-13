@@ -1,11 +1,15 @@
 from datasets import load_dataset
 from openai import OpenAI
 from together import Together
+from dotenv import load_dotenv
 import re
 import os
 from tqdm import tqdm, trange
 from template import CONSISTENCY_COT_PROMPT
 from sklearn.metrics import accuracy_score, balanced_accuracy_score
+
+# Load environment variables
+load_dotenv()
 
 def load_dataset_from_dir(path, type= 'json', split='train'):
     """
@@ -86,7 +90,7 @@ def initialize_clients(name='gpt'):
   llama_client = Together(api_key=os.getenv('tohether_api_key'))
   qwen_client = OpenAI(
     # If environment variables are not configured, replace the following line with: api_key="sk-xxx",
-    api_key="sk-cfe35a9b04034f8597ce1fd45b8bf45c", 
+    api_key=os.getenv('qwen_api_key'), 
     base_url="https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
 )
   if name == 'gpt':
@@ -142,3 +146,5 @@ def consistency_evaluator_doctype(dataset, client, model_name='qwen'):
          print(f"""Prediction: {prediction} True Label: {dataset[i]['label']}""")
          if i%5 == 0 and i > 0:
             t.set_postfix(accuracy=balanced_accuracy_score(predictions, true_labels))
+   print(f"Final Accuracy: {accuracy_score(predictions, true_labels)}")
+   print(f"Final Balanced Accuracy: {balanced_accuracy_score(predictions, true_labels)}")
