@@ -134,7 +134,6 @@ def consistency_evaluator_doctype(dataset, client, model_name='qwen'):
             ],
             stream=False
          )
-         
          prediction = extract_answer_qwen(response.choices[0].message.content)
          predictions.append(prediction)
          true_labels.append(dataset[i]['label'])
