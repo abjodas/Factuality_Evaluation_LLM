@@ -1,4 +1,4 @@
-from helpers import load_dataset_from_dir, initialize_clients, consistency_evaluator_doctype, ranking_evaluator
+from helpers import load_dataset_from_dir, initialize_clients, consistency_evaluator_doctype, ranking_evaluator, bartscore_eval
 import argparse
 
 parser = argparse.ArgumentParser(description="arguments for evaluatiing factuality")
@@ -18,3 +18,6 @@ if __name__ == "__main__":
     elif args.task == "ranking" or args.dataset_name == "frank":
         dataset = load_dataset_from_dir(f"data/benchmark_data.json", type='json', split='train')
         ranking_evaluator(dataset, client=initialize_clients(args.llm_provider), model_name=args.model_name)
+    elif args.task == "bartscore":
+        dataset = load_dataset_from_dir(f"data/{"human_annotations.aligned.paired.jsonl"}.jsonl", type='json', split='train')
+        bartscore_eval(dataset)
