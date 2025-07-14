@@ -187,3 +187,23 @@ def ranking_evaluator(dataset, client, model_name='deepseek-chat'):
    spearman_corr, spearman_p_value = spearmanr(llm_scores, human_scores)
    print(f"Pearson Correlation (ρ): {pearson_corr:.4f}")
    print(f"Spearman Correlation (r): {spearman_corr:.4f}")
+
+   def bartscore_eval(dataset):
+      metrics = ['coherence', 'consistency', 'fluency', 'relevance']
+      averages = {metric: [] for metric in metrics}
+
+      for item in dataset:
+         annotations = item.get('expert_annotations', [])
+         if not annotations:  
+            for metric in metrics:
+                  averages[metric].append(None) 
+            continue
+
+         num_annotations = len(annotations)
+         for metric in metrics:
+            total_score = sum(anno[metric] for anno in annotations)
+            averages[metric].append(total_score / num_annotations)
+      bartscores = load_dataset('json', data_files='/data/bartscore_results.jsonl', split='train')
+      bartscores_list = [item['average_bartscore'] for item in bartscores]
+      print(f"The spearman correlation between BARTScore and human scores is: {spearmanr(bartscores_list, human_scores)}")
+      print(f"The pearson correlation between BARTScore and human scores is: {pearsonr(bartscores_list, human_scores)}")
