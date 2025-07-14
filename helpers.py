@@ -107,25 +107,6 @@ def initialize_clients(name='gpt'):
     return llama_client
   else:
     return qwen_client
-extract_answer_qwen("""
-1. **Identify the key claim in the summary:**  
-   The summary states, *"the bolton boxer had hoped to take [on] floyd mayweather in a $300million mega-fight."*
-
-2. **Determine who "the Bolton boxer" refers to:**  
-   From the article, it's clear that "the Bolton boxer" is Amir Khan.
-
-3. **Check if the article supports that Amir Khan wanted to fight Floyd Mayweather:**  
-   Yes, the article says: *"The Bolton boxer had hoped to take on Floyd Mayweather but the pound-for-pound king will instead meet Manny Pacquaio in a $300million mega-fight on May 2."* This confirms that Amir Khan wanted to fight Mayweather.
-
-4. **Check if the article mentions a "$300 million mega-fight":**  
-   Yes, the article clearly states that Mayweather will meet Manny Pacquiao in a "$300million mega-fight on May 2."
-
-5. **Putting it together:**  
-   The summary accurately reflects that Amir Khan had hoped to fight Floyd Mayweather, and that Mayweather’s next fight was the $300 million matchup against Pacquiao. There are no inaccuracies or unsupported claims in the summary.
-
-**Conclusion:**  
-**Consistent**
-""")
 def most_frequent(List):
     return max(set(List), key=List.count)
 
