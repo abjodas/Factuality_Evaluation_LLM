@@ -188,3 +188,106 @@ def bartscore_eval(dataset):
    bartscores_list = [item['average_bartscore'] for item in bartscores]
    print(f"The spearman correlation between BARTScore and human scores is: {spearmanr(bartscores_list, human_scores)}")
    print(f"The pearson correlation between BARTScore and human scores is: {pearsonr(bartscores_list, human_scores)}")
+
+class NERConsistencyEvaluator:
+  def __init__(self, model_name: str="en_core_web_sm"):
+    try:
+      self.nlp = spacy.load(model_name)
+    except OSError:
+      print(f"Model {model_name} not found. Please download it with.")
+      print(f"python -m spacy download {model_name}")
+    self.entity_types = {
+        'PERSON', 'ORG', 'GPE', 'LOC', 'EVENT', 'FAC', 'PRODUCT',
+        'DATE', 'TIME', 'PERCENT', 'MONEY', 'QUANTITY', 'CARDINAL',
+        'ORDINAL'
+    }
+  def extract_entities(self, text: str) -> Dict[str, Set[str]]:
+    doc = self.nlp(text)
+    entities = defaultdict(set)
+    for ent in doc.ents:
+      if ent.label_ in self.entity_types:
+        normalized_text = ent.text.lower().strip()
+        if len(normalized_text) > 1:
+          entities[ent.label_].add(normalized_text)
+    return dict(entities)
+  def get_all_entities(self, entities_dict: Dict[str, Set[str]]) -> Set[str]:
+    all_entities = set()
+    for entity_set in entities_dict.values():
+      all_entities.update(entity_set)
+    return all_entities
+  def entity_overlap_score(self, document: str, summary: str) -> float:
+    """
+    Calculate entity overlap score: (entities in summary that are in document) / (total entities in summary)
+    """
+    doc_entities = self.get_all_entities(self.extract_entities(document))
+    sum_entities = self.get_all_entities(self.extract_entities(summary))
+    if not sum_entities:
+      return 1.0
+    overlap = len(sum_entities.intersection(doc_entities))
+    return overlap / len(sum_entities)
+  def entity_hallucination_score(self, document: str, summary: str) -> float:
+    """
+    Calculate entity hallucination score: (entities in summary not in the document) / (total entities in summary)
+    """
+    return 1.0 - self.entity_overlap_score(document, summary)
+  def entity_coverage_score(self, document: str, summary: str) -> float:
+    """
+    Calculate entity coverage score: (document entities covered in summary) / (total entities in document)
+    """
+    doc_entities = self.get_all_entities(self.extract_entities(document))
+    sum_entities = self.get_all_entities(self.extract_entities(summary))
+    if not doc_entities:
+      return 1.0
+    coverage = len(doc_entities.intersection(sum_entities))
+    return coverage / len(doc_entities)
+  def entity_type_consistency_score(self, document: str, summary: str) -> float:
+    """
+    Check if entities maintain consistent types between document and summary
+    """
+    doc_entities = self.extract_entities(document)
+    sum_entities = self.extract_entities(summary)
+    doc_entity_types = {}
+    for ent_type, entities in doc_entities.items():
+      for entity in entities:
+        doc_entity_types['entity'] = ent_type
+    sum_entity_types = {}
+    for ent_type, entities in sum_entities.items():
+      for entity in entities:
+        sum_entity_types['entity'] = ent_type
+    shared_entities = set(doc_entity_types.keys()).intersection(set(sum_entity_types.keys()))
+
+    if not shared_entities:
+      return 1.0
+    consistent_count = 0
+    for entity in shared_entities:
+      if doc_entity_types[entity] == sum_entity_types[entity]:
+        consistent_count += 1
+    return consistent_count / len(shared_entities)
+  def comprehensive_ner_score(self, document: str, summary: str, weights: Dict[str, float] = None) -> Dict[str, float]:
+    """
+    Calculate the comprehensive NER Score based on multiple metrics
+    """
+    if weights is None:
+      weights = {
+        'overlap': 0.4,
+        'hallucination': 0.3,
+        'coverage': 0.2,
+        'type_consistency': 0.1
+      }
+    scores = {}
+    scores['entity_overlap'] = self.entity_overlap_score(document, summary)
+    scores['entity_hallucination'] = self.entity_hallucination_score(document, summary)
+    scores['entity_coverage'] = self.entity_coverage_score(document, summary)
+    scores['entity_type_consistency'] = self.entity_type_consistency_score(document, summary)
+      
+    combined_score = (
+          weights['overlap'] * scores['entity_overlap'] +
+          weights['hallucination'] * scores['entity_hallucination'] +
+          weights['coverage'] * scores['entity_coverage'] + 
+          weights['type_consistency'] * scores['entity_type_consistency']
+    )
+    scores['combined_ner_score'] = combined_score
+    return scores
+  def predict_consistency(self, document: str, summary: str, threshold: float = 0.7) -> int:
+    overlap_score = self.entity_overlap_score(document, summary)
+    return 1 if overlap_score >= threshold else 0 
