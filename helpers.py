@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 from datasets import load_dataset
 from scipy.stats import pearsonr, spearmanr
+import spacy
 
 # Load environment variables
 load_dotenv()
