@@ -1,4 +1,4 @@
-from helpers import load_dataset_from_dir, initialize_clients, consistency_evaluator_doctype, ranking_evaluator, bartscore_eval, evaluate_ner_on_factcc_dataset
+from helpers import load_dataset_from_dir, initialize_clients, consistency_evaluator_doctype, ranking_evaluator, bartscore_eval, evaluate_ner_on_factcc_dataset, evaluate_additional_metrics
 from datasets import load_dataset
 import argparse
 
@@ -28,3 +28,7 @@ if __name__ == "__main__":
             results_df, best_threshold = evaluate_ner_on_factcc_dataset(dataset)
             print(f"Best threshold: {best_threshold}")
             print(results_df)
+    elif args.task == 'correlation':
+        dataset = load_dataset_from_dir("data/model_annotations.aligned.paired.jsonl")
+        evaluate_additional_metrics(dataset)
+

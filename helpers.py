@@ -12,9 +12,24 @@ import pandas as pd
 from datasets import load_dataset
 from scipy.stats import pearsonr, spearmanr
 import spacy
+import evaluate
+from collections import defaultdict
+from typing import Dict, Set
+from sklearn.metrics import precision_recall_fscore_support
+from sklearn.metrics.pairwise import cosine_similarity
+from sentence_transformers import SentenceTransformer
+from nltk.tokenize import sent_tokenize
+import nltk
+
 
 # Load environment variables
 load_dotenv()
+
+# Download NLTK punkt tokenizer if not already available
+try:
+  nltk.data.find('tokenizers/punkt')
+except LookupError:
+  nltk.download('punkt')
 
 def load_dataset_from_dir(path, type= 'json', split='train'):
     """
@@ -403,3 +418,111 @@ def evaluate_ner_on_factcc_dataset(dataset, output_file='ner_results.csv'):
       print(f"\nResults saved to {output_file}")
       
       return results_df, best_threshold
+
+class AdditionalEvaluationMetrics:
+  def __init__(self):
+    self.sentence_model = SentenceTransformer('all-MiniLM-L6-v2')
+    self.meteor = evaluate.load('meteor')
+    self.bleu = evaluate.load('bleu')
+    self.sacre_bleu = evaluate.load('sacrebleu')
+  def factual_consistency_score(self, references, summary):
+    if not references or not summary:
+      return 0.0
+    all_ref_sentences = []
+    for ref in references:
+      ref_sentences = sent_tokenize(ref)
+      ref_sentences = [s.strip() for s in ref_sentences if len(s.strip()) > 10]
+      all_ref_sentences.extend(ref_sentences)
+    sum_sentences = sent_tokenize(summary)
+    sum_sentences = [s.strip() for s in sum_sentences if len(s.strip()) > 10]
+    if not all_ref_sentences or not sum_sentences:
+      return 0.0
+    ref_embeddings = self.sentence_model.encode(all_ref_sentences)
+    sum_embeddings = self.sentence_model.encode(sum_sentences)
+    consistency_scores = []
+    for sum_emb in sum_embeddings:
+      similarities = cosine_similarity([sum_emb], ref_embeddings)[0]
+      max_similarity = np.max(similarities)
+      consistency_scores.append(max_similarity)
+    return np.mean(consistency_scores)
+  def semantic_similarity(self, references, summary):
+    if not references or not summary:
+      return 0.0
+    ref_embeddings = self.sentence_model.encode(references)
+    sum_embedding = self.sentence_model.encode([summary])
+    similarities = cosine_similarity(sum_embedding, ref_embeddings)[0]
+    return np.max(similarities)
+  def meteor_evaluator(self, references, summary):
+    try:
+      result = self.meteor.compute(predictions=[summary], references=[references])
+      return result['meteor']
+    except Exception as e:
+      print(e)
+      return 0.0
+  def bleu_evaluator(self, references, summary):
+    try:
+      result = self.bleu.compute(predictions=[summary], references=[references])
+      return result['bleu']
+    except Exception as e:
+      print(e)
+      return 0.0
+  def sacre_bleu_evaluator(self, references, summary):
+    try:
+      result = self.sacre_bleu.compute(predictions=[summary], references=[references])
+      return result['score']
+    except Exception as e:
+      print(e)
+      return 0.0
+    
+def evaluate_additional_metrics(dataset, output_file='additional_metrics_results.csv'):
+    """
+    Evaluate additional metrics on the dataset.
+    
+    Args:
+        dataset: Dataset with 'references' (list of references) and 'summary' (generated summary) columns
+        output_file: File to save results
+    """
+    metrics_evaluator = AdditionalEvaluationMetrics()
+    results = {
+        'factual_consistency': [],
+        'semantic_similarity': [],
+        'meteor_score': [],
+        'bleu_score': [],
+        'sacre_bleu_score': []
+    }
+    
+    with trange(len(dataset)) as t:
+        for i in t:
+            references = dataset[i]['references']
+            summary = dataset[i]['summary']
+            results['factual_consistency'].append(metrics_evaluator.factual_consistency_score(references, summary))
+            results['semantic_similarity'].append(metrics_evaluator.semantic_similarity(references, summary))
+            results['meteor_score'].append(metrics_evaluator.meteor_evaluator(references, summary))
+            results['bleu_score'].append(metrics_evaluator.bleu_evaluator(references, summary))
+            results['sacre_bleu_score'].append(metrics_evaluator.sacre_bleu_evaluator(references, summary))
+            if i % 10 == 0 and i > 0:
+                t.set_postfix(factual_consistency=np.mean(results['factual_consistency']))
+    
+    metrics = ['coherence', 'consistency', 'fluency', 'relevance']
+    averages = {metric: [] for metric in metrics}
+
+    for item in dataset:
+        annotations = item.get('expert_annotations', [])
+        if not annotations:  # Skip if there are no annotations
+            for metric in metrics:
+                averages[metric].append(None)
+            continue
+
+        num_annotations = len(annotations)
+        for metric in metrics:
+            total_score = sum(anno[metric] for anno in annotations)
+            averages[metric].append(total_score / num_annotations)
+    for metric in metrics:
+      print(f"{metric} Pearsonr: {pearsonr(results, averages[metric])}")
+      print(f"{metric} Spearmanr: {spearmanr(results, averages[metric])}")
+      print("-"*500)
+    results_df = pd.DataFrame(results)
+    results_df.to_csv(output_file, index=False)
+    print(f"Results saved to {output_file}")
+    
+    return results_df
