@@ -2,6 +2,7 @@ from datasets import load_dataset
 from openai import OpenAI
 from together import Together
 from dotenv import load_dotenv
+import torch
 import re
 import os
 from tqdm import tqdm, trange
@@ -426,6 +427,16 @@ class AdditionalEvaluationMetrics:
     self.bleu = evaluate.load('bleu')
     self.sacre_bleu = evaluate.load('sacrebleu')
     self.rouge = evaluate.load('rouge')
+    try:
+       result = os.system('git clone https://github.com/neulab/BARTScore.git')
+       if result != 0:
+          raise Exception("Git clone failed")
+       from BARTScore.bart_score import BARTScorer
+       device = 'mps' if torch.backends.mps.is_available() else 'cuda' if torch.cuda.is_available() else 'cpu'
+       self.bart_scorer = BARTScorer(device='cuda:0', checkpoint='facebook/bart-large-cnn')
+    except Exception as e:
+       print(f"Error cloning BARTScore repository: {e}")
+       print("Please ensure you have git installed and try again.")
   def factual_consistency_score(self, references, summary):
     if not references or not summary:
       return 0.0
