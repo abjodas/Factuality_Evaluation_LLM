@@ -499,7 +499,7 @@ class AdditionalEvaluationMetrics:
     except Exception as e:
       print(e)
       return 0.0
-  def bert_score(self, references, summary):
+  def bert_score_evaluator(self, references, summary):
      try:
         curr_max = 0
         score = 0
@@ -530,45 +530,45 @@ def evaluate_additional_metrics(dataset, output_file='additional_metrics_results
         'bert_score': []
     }
     metrics_evaluator = AdditionalEvaluationMetrics()
-    if hasattr(metrics_evaluator, 'bart_scorer'):
-        old_min = -3.673  # Typical minimum BARTScore
-        old_max = -1.049   # Typical maximum BARTScore
-        new_min = 1
-        new_max = 5
-        OldRange = (old_max - old_min)
-        NewRange = (new_max - new_min)
+    # if hasattr(metrics_evaluator, 'bart_scorer'):
+    #     old_min = -3.673  # Typical minimum BARTScore
+    #     old_max = -1.049   # Typical maximum BARTScore
+    #     new_min = 1
+    #     new_max = 5
+    #     OldRange = (old_max - old_min)
+    #     NewRange = (new_max - new_min)
 
-        results_bart = []
+    #     results_bart = []
 
-        with trange(len(dataset)) as t:
-            for i in t:
-                # Prepare data for BARTScore
-                src = [dataset[i]['decoded']]  # Single string in a list
-                tgt = [dataset[i]['references']]  # List of reference strings wrapped in a list
+    #     with trange(len(dataset)) as t:
+    #         for i in t:
+    #             # Prepare data for BARTScore
+    #             src = [dataset[i]['decoded']]  # Single string in a list
+    #             tgt = [dataset[i]['references']]  # List of reference strings wrapped in a list
 
-                try:
-                    # Calculate BARTScore
-                    score = metrics_evaluator.bart_scorer.multi_ref_score(src, tgt, agg="max", batch_size=1)
+    #             try:
+    #                 # Calculate BARTScore
+    #                 score = metrics_evaluator.bart_scorer.multi_ref_score(src, tgt, agg="max", batch_size=1)
 
-                    # Extract the score (it returns a list)
-                    bart_score = score[0] if isinstance(score, list) else score
+    #                 # Extract the score (it returns a list)
+    #                 bart_score = score[0] if isinstance(score, list) else score
 
-                    # Apply the same scaling transformation
-                    scaled_score = (((bart_score - old_min) * NewRange) / OldRange) + new_min
+    #                 # Apply the same scaling transformation
+    #                 scaled_score = (((bart_score - old_min) * NewRange) / OldRange) + new_min
 
-                    # Clamp to ensure it stays within bounds
-                    scaled_score = max(new_min, min(new_max, scaled_score))
+    #                 # Clamp to ensure it stays within bounds
+    #                 scaled_score = max(new_min, min(new_max, scaled_score))
 
-                    results['bart_score'].append(scaled_score)
+    #                 results['bart_score'].append(scaled_score)
 
-                    # Update progress bar with current score
-                    t.set_postfix(bart_score=f"{scaled_score:.3f}")
+    #                 # Update progress bar with current score
+    #                 t.set_postfix(bart_score=f"{scaled_score:.3f}")
 
-                except Exception as e:
-                    print(f"Error processing sample {i}: {e}")
-                    # Append a default score or skip
-                    results['bart_score'].append(new_min)  # or use np.nan
-                    continue
+    #             except Exception as e:
+    #                 print(f"Error processing sample {i}: {e}")
+    #                 # Append a default score or skip
+    #                 results['bart_score'].append(new_min)  # or use np.nan
+    #                 continue
     
     
     with trange(len(dataset)) as t:
@@ -581,7 +581,7 @@ def evaluate_additional_metrics(dataset, output_file='additional_metrics_results
             results['bleu_score'].append(metrics_evaluator.bleu_evaluator(references, summary))
             results['sacre_bleu_score'].append(metrics_evaluator.sacre_bleu_evaluator(references, summary))
             results['rouge_score'].append(metrics_evaluator.rouge_evaluator(references, summary))
-            results['bert_score'].append(metrics_evaluator.bert_score(references, summary))
+            results['bert_score'].append(metrics_evaluator.bert_score_evaluator(references, summary))
             if i % 10 == 0 and i > 0:
                 t.set_postfix(factual_consistency=np.mean(results['factual_consistency']))
     
