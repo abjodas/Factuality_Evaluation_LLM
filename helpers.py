@@ -427,16 +427,21 @@ class AdditionalEvaluationMetrics:
     self.bleu = evaluate.load('bleu')
     self.sacre_bleu = evaluate.load('sacrebleu')
     self.rouge = evaluate.load('rouge')
-    try:
-       result = os.system('git clone https://github.com/neulab/BARTScore.git')
-       if result != 0:
-          raise Exception("Git clone failed")
-       from BARTScore.bart_score import BARTScorer
-       device = 'mps' if torch.backends.mps.is_available() else 'cuda' if torch.cuda.is_available() else 'cpu'
-       self.bart_scorer = BARTScorer(device='cuda:0', checkpoint='facebook/bart-large-cnn')
-    except Exception as e:
-       print(f"Error cloning BARTScore repository: {e}")
-       print("Please ensure you have git installed and try again.")
+    if os.path.exists('BARTScore'):
+      from BARTScore.bart_score import BARTScorer
+      device = 'mps' if torch.backends.mps.is_available() else 'cuda' if torch.cuda.is_available() else 'cpu'
+      self.bart_scorer = BARTScorer(device=device, checkpoint='facebook/bart-large-cnn')
+    else:
+      try:
+        result = os.system('git clone https://github.com/neulab/BARTScore.git')
+        if result != 0:
+            raise Exception("Git clone failed")
+        from BARTScore.bart_score import BARTScorer
+        device = 'mps' if torch.backends.mps.is_available() else 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.bart_scorer = BARTScorer(device='cuda:0', checkpoint='facebook/bart-large-cnn')
+      except Exception as e:
+        print(f"Error cloning BARTScore repository: {e}")
+        print("Please ensure you have git installed and try again.")
   def factual_consistency_score(self, references, summary):
     if not references or not summary:
       return 0.0
@@ -501,15 +506,56 @@ def evaluate_additional_metrics(dataset, output_file='additional_metrics_results
         dataset: Dataset with 'references' (list of references) and 'summary' (generated summary) columns
         output_file: File to save results
     """
-    metrics_evaluator = AdditionalEvaluationMetrics()
     results = {
         'factual_consistency': [],
         'semantic_similarity': [],
         'meteor_score': [],
         'bleu_score': [],
         'sacre_bleu_score': [],
-        'rouge_score': []
+        'rouge_score': [],
+        'bart_score': []
     }
+    metrics_evaluator = AdditionalEvaluationMetrics()
+    if hasattr(metrics_evaluator, 'bart_scorer'):
+        old_min = -3.673  # Typical minimum BARTScore
+        old_max = -1.049   # Typical maximum BARTScore
+        new_min = 1
+        new_max = 5
+        OldRange = (old_max - old_min)
+        NewRange = (new_max - new_min)
+
+        results_bart = []
+
+        with trange(len(dataset)) as t:
+            for i in t:
+                # Prepare data for BARTScore
+                src = [dataset[i]['decoded']]  # Single string in a list
+                tgt = [dataset[i]['references']]  # List of reference strings wrapped in a list
+
+                try:
+                    # Calculate BARTScore
+                    score = metrics_evaluator.bart_scorer.multi_ref_score(src, tgt, agg="max", batch_size=1)
+
+                    # Extract the score (it returns a list)
+                    bart_score = score[0] if isinstance(score, list) else score
+
+                    # Apply the same scaling transformation
+                    scaled_score = (((bart_score - old_min) * NewRange) / OldRange) + new_min
+
+                    # Clamp to ensure it stays within bounds
+                    scaled_score = max(new_min, min(new_max, scaled_score))
+
+                    results['bart_score'].append(scaled_score)
+
+                    # Update progress bar with current score
+                    t.set_postfix(bart_score=f"{scaled_score:.3f}")
+
+                except Exception as e:
+                    print(f"Error processing sample {i}: {e}")
+                    # Append a default score or skip
+                    results['bart_score'].append(new_min)  # or use np.nan
+                    continue
+    
     
     with trange(len(dataset)) as t:
         for i in t:
@@ -553,6 +599,7 @@ def evaluate_additional_metrics(dataset, output_file='additional_metrics_results
       df_dict['sacre_bleu'][metric] = float(pearsonr(results['sacre_bleu_score'], averages[metric])[0])
       df_dict['factual_consistency'][metric] = float(pearsonr(results['factual_consistency'], averages[metric])[0])
       df_dict['semantic_similarity'][metric] = float(pearsonr(results['semantic_similarity'], averages[metric])[0])
+      df_dict['bart_score'][metric] = float(pearsonr(results['bart_score'], averages[metric])[0])
     print(df_dict)
     results_df = pd.DataFrame(df_dict)
     results_df.to_csv(output_file, index=False)
