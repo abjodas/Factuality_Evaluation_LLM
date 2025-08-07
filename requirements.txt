@@ -4,3 +4,4 @@ numpy
 pandas
 sacrebleu
 rouge_score
+bert_score

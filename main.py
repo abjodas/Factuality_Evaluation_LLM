@@ -28,6 +28,11 @@ if __name__ == "__main__":
             results_df, best_threshold = evaluate_ner_on_factcc_dataset(dataset)
             print(f"Best threshold: {best_threshold}")
             print(results_df)
+        if args.dataset_name == 'polytope':
+            dataset = load_dataset_from_dir(f'data/polytope_{args.split}.jsonl', type='json', split='train')
+            results_df, best_threshold = evaluate_ner_on_factcc_dataset(dataset)
+            print(f"Best threshold: {best_threshold}")
+            print(results_df)
     elif args.task == 'correlation':
         dataset = load_dataset_from_dir("data/model_annotations.aligned.paired.jsonl")
         evaluate_additional_metrics(dataset)

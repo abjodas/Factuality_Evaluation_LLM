@@ -14,6 +14,7 @@ from datasets import load_dataset
 from scipy.stats import pearsonr, spearmanr
 import spacy
 import evaluate
+from evaluate import load
 from collections import defaultdict
 from typing import Dict, Set
 from sklearn.metrics import precision_recall_fscore_support
@@ -427,6 +428,7 @@ class AdditionalEvaluationMetrics:
     self.bleu = evaluate.load('bleu')
     self.sacre_bleu = evaluate.load('sacrebleu')
     self.rouge = evaluate.load('rouge')
+    self.bert_score = load('bertscore')
     if os.path.exists('BARTScore'):
       from BARTScore.bart_score import BARTScorer
       device = 'mps' if torch.backends.mps.is_available() else 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -497,6 +499,17 @@ class AdditionalEvaluationMetrics:
     except Exception as e:
       print(e)
       return 0.0
+  def bert_score(self, references, summary):
+     try:
+        curr_max = 0
+        score = 0
+        for ref in references:
+           if self.bert_score.compute(predictions=[summary], references=[ref], lang="en")['precision'][0] > curr_max:
+              score = self.bert_score.compute(predictions=[summary], references=[ref], lang="en")['precision'][0]
+        return score
+     except Exception as e:
+        print(e)
+        return 0.0
     
 def evaluate_additional_metrics(dataset, output_file='additional_metrics_results.csv'):
     """
@@ -513,7 +526,8 @@ def evaluate_additional_metrics(dataset, output_file='additional_metrics_results
         'bleu_score': [],
         'sacre_bleu_score': [],
         'rouge_score': [],
-        'bart_score': []
+        'bart_score': [],
+        'bert_score': []
     }
     metrics_evaluator = AdditionalEvaluationMetrics()
     if hasattr(metrics_evaluator, 'bart_scorer'):
@@ -567,6 +581,7 @@ def evaluate_additional_metrics(dataset, output_file='additional_metrics_results
             results['bleu_score'].append(metrics_evaluator.bleu_evaluator(references, summary))
             results['sacre_bleu_score'].append(metrics_evaluator.sacre_bleu_evaluator(references, summary))
             results['rouge_score'].append(metrics_evaluator.rouge_evaluator(references, summary))
+            results['bert_score'].append(metrics_evaluator.bert_score(references, summary))
             if i % 10 == 0 and i > 0:
                 t.set_postfix(factual_consistency=np.mean(results['factual_consistency']))
     
@@ -600,6 +615,7 @@ def evaluate_additional_metrics(dataset, output_file='additional_metrics_results
       df_dict['factual_consistency'][metric] = float(pearsonr(results['factual_consistency'], averages[metric])[0])
       df_dict['semantic_similarity'][metric] = float(pearsonr(results['semantic_similarity'], averages[metric])[0])
       df_dict['bart_score'][metric] = float(pearsonr(results['bart_score'], averages[metric])[0])
+      df_dict['bert_score'] = float(pearsonr(results['bert_score'], averages[metric])[0])
     print(df_dict)
     results_df = pd.DataFrame(df_dict)
     results_df.to_csv(output_file, index=False)
