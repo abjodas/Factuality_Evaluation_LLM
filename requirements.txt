@@ -1,0 +1,6 @@
+transformers
+nltk
+numpy
+pandas
+sacrebleu
+rouge_score

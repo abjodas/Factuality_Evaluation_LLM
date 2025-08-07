@@ -425,6 +425,7 @@ class AdditionalEvaluationMetrics:
     self.meteor = evaluate.load('meteor')
     self.bleu = evaluate.load('bleu')
     self.sacre_bleu = evaluate.load('sacrebleu')
+    self.rouge = evaluate.load('rouge')
   def factual_consistency_score(self, references, summary):
     if not references or not summary:
       return 0.0
@@ -473,6 +474,13 @@ class AdditionalEvaluationMetrics:
     except Exception as e:
       print(e)
       return 0.0
+  def rouge_evaluator(self, references, summary):
+    try:
+      result = self.rouge.compute(predictions=[summary], references=[references])
+      return result['rouge1']
+    except Exception as e:
+      print(e)
+      return 0.0
     
 def evaluate_additional_metrics(dataset, output_file='additional_metrics_results.csv'):
     """
@@ -488,18 +496,20 @@ def evaluate_additional_metrics(dataset, output_file='additional_metrics_results
         'semantic_similarity': [],
         'meteor_score': [],
         'bleu_score': [],
-        'sacre_bleu_score': []
+        'sacre_bleu_score': [],
+        'rouge_score': []
     }
     
     with trange(len(dataset)) as t:
         for i in t:
             references = dataset[i]['references']
-            summary = dataset[i]['summary']
+            summary = dataset[i]['decoded']
             results['factual_consistency'].append(metrics_evaluator.factual_consistency_score(references, summary))
             results['semantic_similarity'].append(metrics_evaluator.semantic_similarity(references, summary))
             results['meteor_score'].append(metrics_evaluator.meteor_evaluator(references, summary))
             results['bleu_score'].append(metrics_evaluator.bleu_evaluator(references, summary))
             results['sacre_bleu_score'].append(metrics_evaluator.sacre_bleu_evaluator(references, summary))
+            results['rouge_score'].append(metrics_evaluator.rouge_evaluator(references, summary))
             if i % 10 == 0 and i > 0:
                 t.set_postfix(factual_consistency=np.mean(results['factual_consistency']))
     
@@ -517,11 +527,23 @@ def evaluate_additional_metrics(dataset, output_file='additional_metrics_results
         for metric in metrics:
             total_score = sum(anno[metric] for anno in annotations)
             averages[metric].append(total_score / num_annotations)
-    for metric in metrics:
-      print(f"{metric} Pearsonr: {pearsonr(results, averages[metric])}")
-      print(f"{metric} Spearmanr: {spearmanr(results, averages[metric])}")
-      print("-"*500)
-    results_df = pd.DataFrame(results)
+    df_dict = {
+    'bleu': {},
+    'meteor': {},
+    'rouge': {},
+    'sacre_bleu': {},
+    'factual_consistency': {},
+    'semantic_similarity': {}
+    }
+    for i, metric in enumerate(metrics):
+      df_dict['bleu'][metric] = float(pearsonr(results['bleu_score'], averages[metric])[0])
+      df_dict['meteor'][metric] = float(pearsonr(results['meteor_score'], averages[metric])[0])
+      df_dict['rouge'][metric] = float(pearsonr(results['rouge_score'], averages[metric])[0])
+      df_dict['sacre_bleu'][metric] = float(pearsonr(results['sacre_bleu_score'], averages[metric])[0])
+      df_dict['factual_consistency'][metric] = float(pearsonr(results['factual_consistency'], averages[metric])[0])
+      df_dict['semantic_similarity'][metric] = float(pearsonr(results['semantic_similarity'], averages[metric])[0])
+    print(df_dict)
+    results_df = pd.DataFrame(df_dict)
     results_df.to_csv(output_file, index=False)
     print(f"Results saved to {output_file}")
     
