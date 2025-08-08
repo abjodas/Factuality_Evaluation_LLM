@@ -548,7 +548,7 @@ class AdditionalEvaluationMetrics:
         print(e)
         return 0.0
     
-def evaluate_additional_metrics(dataset, output_file='additional_metrics_results.csv'):
+def evaluate_additional_metrics(dataset, output_file='additional_metrics_results.csv') -> pd.DataFrame:
     """
     Evaluate additional metrics on the dataset.
     
@@ -567,45 +567,45 @@ def evaluate_additional_metrics(dataset, output_file='additional_metrics_results
         'bert_score': []
     }
     metrics_evaluator = AdditionalEvaluationMetrics()
-    # if hasattr(metrics_evaluator, 'bart_scorer'):
-    #     old_min = -3.673  # Typical minimum BARTScore
-    #     old_max = -1.049   # Typical maximum BARTScore
-    #     new_min = 1
-    #     new_max = 5
-    #     OldRange = (old_max - old_min)
-    #     NewRange = (new_max - new_min)
+    if hasattr(metrics_evaluator, 'bart_scorer'):
+        old_min = -3.673  # Typical minimum BARTScore
+        old_max = -1.049   # Typical maximum BARTScore
+        new_min = 1
+        new_max = 5
+        OldRange = (old_max - old_min)
+        NewRange = (new_max - new_min)
 
-    #     results_bart = []
+        results_bart = []
 
-    #     with trange(len(dataset)) as t:
-    #         for i in t:
-    #             # Prepare data for BARTScore
-    #             src = [dataset[i]['decoded']]  # Single string in a list
-    #             tgt = [dataset[i]['references']]  # List of reference strings wrapped in a list
+        with trange(len(dataset)) as t:
+            for i in t:
+                # Prepare data for BARTScore
+                src = [dataset[i]['decoded']]  # Single string in a list
+                tgt = [dataset[i]['references']]  # List of reference strings wrapped in a list
 
-    #             try:
-    #                 # Calculate BARTScore
-    #                 score = metrics_evaluator.bart_scorer.multi_ref_score(src, tgt, agg="max", batch_size=1)
+                try:
+                    # Calculate BARTScore
+                    score = metrics_evaluator.bart_scorer.multi_ref_score(src, tgt, agg="max", batch_size=1)
 
-    #                 # Extract the score (it returns a list)
-    #                 bart_score = score[0] if isinstance(score, list) else score
+                    # Extract the score (it returns a list)
+                    bart_score = score[0] if isinstance(score, list) else score
 
-    #                 # Apply the same scaling transformation
-    #                 scaled_score = (((bart_score - old_min) * NewRange) / OldRange) + new_min
+                    # Apply the same scaling transformation
+                    scaled_score = (((bart_score - old_min) * NewRange) / OldRange) + new_min
 
-    #                 # Clamp to ensure it stays within bounds
-    #                 scaled_score = max(new_min, min(new_max, scaled_score))
+                    # Clamp to ensure it stays within bounds
+                    scaled_score = max(new_min, min(new_max, scaled_score))
 
-    #                 results['bart_score'].append(scaled_score)
+                    results['bart_score'].append(scaled_score)
 
-    #                 # Update progress bar with current score
-    #                 t.set_postfix(bart_score=f"{scaled_score:.3f}")
+                    # Update progress bar with current score
+                    t.set_postfix(bart_score=f"{scaled_score:.3f}")
 
-    #             except Exception as e:
-    #                 print(f"Error processing sample {i}: {e}")
-    #                 # Append a default score or skip
-    #                 results['bart_score'].append(new_min)  # or use np.nan
-    #                 continue
+                except Exception as e:
+                    print(f"Error processing sample {i}: {e}")
+                    # Append a default score or skip
+                    results['bart_score'].append(new_min)  # or use np.nan
+                    continue
     
     
     with trange(len(dataset)) as t:
@@ -636,26 +636,49 @@ def evaluate_additional_metrics(dataset, output_file='additional_metrics_results
         for metric in metrics:
             total_score = sum(anno[metric] for anno in annotations)
             averages[metric].append(total_score / num_annotations)
-    df_dict = {
+    spearman_dict = {
     'bleu': {},
     'meteor': {},
     'rouge': {},
     'sacre_bleu': {},
     'factual_consistency': {},
-    'semantic_similarity': {}
+    'semantic_similarity': {},
+    'bart_score': {},
+    'bert_score': {}
+    }
+    pearson_dict = {
+    'bleu': {},
+    'meteor': {},
+    'rouge': {},
+    'sacre_bleu': {},
+    'factual_consistency': {},
+    'semantic_similarity': {},
+    'bart_score': {},
+    'bert_score': {}
     }
     for i, metric in enumerate(metrics):
-      df_dict['bleu'][metric] = float(pearsonr(results['bleu_score'], averages[metric])[0])
-      df_dict['meteor'][metric] = float(pearsonr(results['meteor_score'], averages[metric])[0])
-      df_dict['rouge'][metric] = float(pearsonr(results['rouge_score'], averages[metric])[0])
-      df_dict['sacre_bleu'][metric] = float(pearsonr(results['sacre_bleu_score'], averages[metric])[0])
-      df_dict['factual_consistency'][metric] = float(pearsonr(results['factual_consistency'], averages[metric])[0])
-      df_dict['semantic_similarity'][metric] = float(pearsonr(results['semantic_similarity'], averages[metric])[0])
-      df_dict['bart_score'][metric] = float(pearsonr(results['bart_score'], averages[metric])[0])
-      df_dict['bert_score'] = float(pearsonr(results['bert_score'], averages[metric])[0])
-    print(df_dict)
-    results_df = pd.DataFrame(df_dict)
-    results_df.to_csv(output_file, index=False)
+      pearson_dict['bleu'][metric] = float(pearsonr(results['bleu_score'], averages[metric])[0])
+      pearson_dict['meteor'][metric] = float(pearsonr(results['meteor_score'], averages[metric])[0])
+      pearson_dict['rouge'][metric] = float(pearsonr(results['rouge_score'], averages[metric])[0])
+      pearson_dict['sacre_bleu'][metric] = float(pearsonr(results['sacre_bleu_score'], averages[metric])[0])
+      pearson_dict['factual_consistency'][metric] = float(pearsonr(results['factual_consistency'], averages[metric])[0])
+      pearson_dict['semantic_similarity'][metric] = float(pearsonr(results['semantic_similarity'], averages[metric])[0])
+      pearson_dict['bart_score'][metric] = float(pearsonr(results['bart_score'], averages[metric])[0])
+      pearson_dict['bert_score'] = float(pearsonr(results['bert_score'], averages[metric])[0])
+      spearman_dict['bleu'][metric] = float(spearmanr(results['bleu_score'], averages[metric])[0])
+      spearman_dict['meteor'][metric] = float(spearmanr(results['meteor_score'], averages[metric])[0])
+      spearman_dict['rouge'][metric] = float(spearmanr(results['rouge_score'], averages[metric])[0])
+      spearman_dict['sacre_bleu'][metric] = float(spearmanr(results['sacre_bleu_score'], averages[metric])[0])
+      spearman_dict['factual_consistency'][metric] = float(spearmanr(results['factual_consistency'], averages[metric])[0])
+      spearman_dict['semantic_similarity'][metric] = float(spearmanr(results['semantic_similarity'], averages[metric])[0])
+      spearman_dict['bart_score'][metric] = float(spearmanr(results['bart_score'], averages[metric])[0])
+      spearman_dict['bert_score'][metric] = float(spearmanr(results['bert_score'], averages[metric])[0])
+    
+    spearman_df = pd.DataFrame(spearman_dict)
+    pearson_df = pd.DataFrame(pearson_dict)
+    combined_df = pd.concat([pearson_df, spearman_df], keys=['Pearson', 'Spearman'], axis=1)
+
+    combined_df.to_csv(output_file, index=False)
     print(f"Results saved to {output_file}")
     
-    return results_df
+    return combined_df
