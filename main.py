@@ -1,4 +1,4 @@
-from helpers import load_dataset_from_dir, initialize_clients, consistency_evaluator_doctype, ranking_evaluator, bartscore_eval, evaluate_ner_on_factcc_dataset, evaluate_additional_metrics
+from helpers import load_dataset_from_dir, initialize_clients, consistency_evaluator_doctype, ranking_evaluator, bartscore_eval, evaluate_ner_on_factcc_dataset, evaluate_additional_metrics, calculate_correlation_llm
 from datasets import load_dataset
 import argparse
 
@@ -36,4 +36,6 @@ if __name__ == "__main__":
     elif args.task == 'correlation':
         dataset = load_dataset_from_dir("data/model_annotations.aligned.paired.jsonl")
         evaluate_additional_metrics(dataset)
-
+    elif args.task == 'correlation_llm':
+        dataset = load_dataset_from_dir("data/model_annotations.aligned.paired.jsonl")
+        results_df = calculate_correlation_llm(dataset, model_name=args.model_name)
