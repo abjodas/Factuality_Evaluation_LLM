@@ -6,7 +6,7 @@ import torch
 import re
 import os
 from tqdm import tqdm, trange
-from template import CONSISTENCY_COT_PROMPT, RANKING_PROMPT
+from template import CONSISTENCY_COT_PROMPT, RANKING_PROMPT, SCORING_PROMPT
 from sklearn.metrics import accuracy_score, balanced_accuracy_score
 import numpy as np
 import pandas as pd
@@ -682,3 +682,121 @@ def evaluate_additional_metrics(dataset, output_file='additional_metrics_results
     print(f"Results saved to {output_file}")
     
     return combined_df
+
+def calculate_correlations_with_pandas(averages, df_ratings, metrics):
+    """Calculate Pearson and Spearman correlations excluding missing values using pandas"""
+    results = {}
+
+    for metric in metrics:
+        # Create a DataFrame with both expert averages and model ratings
+        comparison_df = pd.DataFrame({
+            'expert_avg': averages[metric],
+            'model_rating': df_ratings[metric]
+        })
+
+        # Drop rows where either value is missing (None/NaN)
+        clean_data = comparison_df.dropna()
+
+        if len(clean_data) > 1:  # Need at least 2 data points for correlation
+            pearson_corr, pearson_p = pearsonr(clean_data['expert_avg'], clean_data['model_rating'])
+            spearman_corr, spearman_p = spearmanr(clean_data['expert_avg'], clean_data['model_rating'])
+
+            results[metric] = {
+                'pearson_correlation': pearson_corr,
+                'pearson_p_value': pearson_p,
+                'spearman_correlation': spearman_corr,
+                'spearman_p_value': spearman_p,
+                'n_samples': len(clean_data),
+                'excluded_samples': len(comparison_df) - len(clean_data)
+            }
+        else:
+            results[metric] = {
+                'pearson_correlation': None,
+                'pearson_p_value': None,
+                'spearman_correlation': None,
+                'spearman_p_value': None,
+                'n_samples': len(clean_data),
+                'excluded_samples': len(comparison_df) - len(clean_data)
+            }
+
+    return results
+
+def evaluate_correlation_llm(dataset, output_file='correlation_results.csv', model_name='qwen'):
+    """
+      Evaluate correlation between LLM predictions and human annotations
+    """
+    client = initialize_clients(model_name)
+    EXPECTED_METRICS = ['coherence', 'consistency', 'fluency', 'relevance']
+    ratings = defaultdict(list)
+    pattern = re.compile(r"\*\*(\w+):\s*(\d+)\*\*")
+    try:
+        with trange(len(dataset)) as t:
+          for i in t:
+            messages = [
+                {"role": "system", "content": "You are a human annotator that rates the quality of summaries. You must provide a rating for Coherence, Consistency, Fluency, and Relevance on a scale of 1 to 5, in the format **Metric: Score**."},
+                {"role": "user", "content": f"Article: {dataset[i]['text']}\nSummary: {dataset[i]['decoded']}"}
+            ]
+
+            # A dictionary to hold the results for just this one item
+            found_scores_for_item = {}
+
+            try:
+                response = client.chat.completions.create(
+                    messages=messages,
+                    model="lgai/exaone-deep-32b",
+                    stream=False,
+                )
+                response_text = response.choices[0].message.content
+                #print(response_text)
+                # Parse the response and populate the temporary dictionary
+                pattern = re.compile(r"(?:\*\*)?(\w+):\s*(\d+)(?:\*\*)?", re.IGNORECASE)
+                for match in pattern.finditer(response_text):
+                    metric_name = match.group(1).lower()
+                    score = int(match.group(2))
+                    if metric_name in EXPECTED_METRICS:
+                        found_scores_for_item[metric_name] = score
+
+            except Exception as e:
+                # Handle cases where the API call itself fails
+                print(f"API call failed for item {i}: {e}")
+                # The found_scores_for_item dictionary will remain empty
+
+            # --- This is the key change ---
+            # Ensure all lists grow by one for every item, using None for missing data.
+            ratings['id'].append(dataset[i]['id'])
+            for metric in EXPECTED_METRICS:
+                # .get(key, default_value) is perfect for this.
+                # It will get the score if found, otherwise it will return None.
+                score = found_scores_for_item.get(metric, None)
+                ratings[metric].append(score)
+
+    finally:
+        # --- Corrected DataFrame Creation ---
+        # Convert the entire dictionary to a DataFrame at the end.
+        # Pandas handles the dictionary of lists format perfectly.
+        print("\nLoop finished or interrupted. Saving results...")
+        df = pd.DataFrame(ratings)
+        df.to_csv('Ratings.csv', index=False)
+        print("Results saved to Ratings.csv")
+
+    metrics = ['coherence', 'consistency', 'fluency', 'relevance']
+    averages = {metric: [] for metric in metrics}
+
+    for item in dataset:
+        annotations = item.get('expert_annotations', [])
+        if not annotations:
+            for metric in metrics:
+                averages[metric].append(None)
+            continue
+        num_annotations = len(annotations)
+        for metric in metrics:
+            total_score = sum(anno[metric] for anno in annotations)
+            averages[metric].append(total_score / num_annotations)
+    results = calculate_correlations_with_pandas(averages, df, metrics)
+    print(results)
+    results_df = pd.DataFrame(results).T
+    results_df.to_csv(output_file, index=False)
+    print(f"Results saved to {output_file}")
+    return results_df
+
+  

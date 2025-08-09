@@ -23,3 +23,15 @@ Carefully read the article and the summary. Then, provide ONLY the numerical fac
 {summary}
 [FACTUALITY SCORE]:
 """
+SCORING_PROMPT = \
+"""
+Your task is to identify which summary is more
+consistent and faithful to the original article
+(preserving key facts without adding or omitting
+important information). Respond with only: "A""
+or "B"
+<Article> {article} </Article>
+<Summary A> {summary_a} </Summary A>
+<Summary B> {summary_b} </Summary B>
+Answer:
+"""
