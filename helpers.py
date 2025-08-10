@@ -721,11 +721,12 @@ def calculate_correlations_with_pandas(averages, df_ratings, metrics):
 
     return results
 
-def evaluate_correlation_llm(dataset, output_file='correlation_results.csv', model_name='qwen'):
+def evaluate_correlation_llm(dataset, output_file='correlation_results.csv', model_name='deepseek-chat', llm_provider='dp'):
     """
       Evaluate correlation between LLM predictions and human annotations
     """
-    client = initialize_clients(model_name)
+    print(f"Evaluating correlation with model: {model_name}")
+    client = initialize_clients(llm_provider)
     EXPECTED_METRICS = ['coherence', 'consistency', 'fluency', 'relevance']
     ratings = defaultdict(list)
     pattern = re.compile(r"\*\*(\w+):\s*(\d+)\*\*")
@@ -743,7 +744,7 @@ def evaluate_correlation_llm(dataset, output_file='correlation_results.csv', mod
             try:
                 response = client.chat.completions.create(
                     messages=messages,
-                    model="lgai/exaone-deep-32b",
+                    model=model_name,
                     stream=False,
                 )
                 response_text = response.choices[0].message.content
