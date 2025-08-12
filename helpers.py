@@ -6,7 +6,7 @@ import torch
 import re
 import os
 from tqdm import tqdm, trange
-from template import CONSISTENCY_COT_PROMPT, RANKING_PROMPT, SCORING_PROMPT
+from template import CONSISTENCY_COT_PROMPT, RANKING_PROMPT, SCORING_PROMPT, SCORING_PROMPT_TAG
 from sklearn.metrics import accuracy_score, balanced_accuracy_score
 import numpy as np
 import pandas as pd
@@ -800,4 +800,50 @@ def evaluate_correlation_llm(dataset, output_file='correlation_results.csv', mod
     print(f"Results saved to {output_file}")
     return results_df
 
-  
+def evaluate_ranking_consistency(dataset, model_name='deepseek-chat', llm_provider='dp', output_file='ranking_consistency_results.csv'):
+    """
+      Evaluate the ranking consistency of summaries using a language model.
+      Args:
+          dataset (Dataset): The dataset containing articles and summaries.
+          model_name (str): The name of the model to use for evaluation.
+          llm_provider (str): The provider of the LLM (e.g., 'dp', 'gpt').
+      Returns:
+          None
+    """
+    client = initialize_clients(llm_provider)
+    pattern = r'<Answer>\*{0,2}A\*{0,2}</Answer>'
+    predictions = []
+    true_labels = []
+    print(f"Evaluating ranking consistency with model: {model_name}")
+    with trange(len(dataset)) as t:
+      for i in t:
+        document = dataset[i]['input']
+        sum_a = dataset[i]['list_choices'][0]
+        sum_b = dataset[i]['list_choices'][1]
+        response5 = client.chat.completions.create(
+          model=model_name,
+          messages=[
+              {"role": "system", "content": "You are a helpful assistant"},
+              {"role": "user", "content": SCORING_PROMPT_TAG.format(document=document, sum_a=sum_a, sum_b=sum_b)},
+          ],
+          stream=False
+        )
+        response = response5.choices[0].message.content
+        if re.search(pattern, response):
+          predicted = 0
+        else:
+          predicted = 1
+        predictions.append(predicted)
+        true_label = dataset[i]['lbl']
+        true_labels.append(true_label)
+        print(response)
+        print('-'*100)
+        print(f"Predicted: {predicted} True: {true_label}")
+        if i % 5 == 0 and i > 0:
+          t.set_postfix(acc=balanced_accuracy_score(predictions, true_labels))
+    results = pd.DataFrame({'model_name': model_name, 'balanced_accuracy': balanced_accuracy_score(predictions, true_labels), 'accuracy': accuracy_score(predictions, true_labels)})
+    results.to_csv(output_file, index=False)
+    print(f"Results saved to {output_file}")
+    print(f"Final Accuracy: {accuracy_score(predictions, true_labels)}")
+    print(f"Final Balanced Accuracy: {balanced_accuracy_score(predictions, true_labels)}")
+    return results

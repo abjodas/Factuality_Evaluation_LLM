@@ -35,3 +35,20 @@ or "B"
 <Summary B> {summary_b} </Summary B>
 Answer:
 """
+SCORING_PROMPT_TAG = \
+"""
+Decide which one of the following summary is consistent with the corresponding article.
+Note that consistency means all information in the summary is supported by the article.
+Explain your reasoning step by step first, and then put the final answer in <Answer>(A or B)</Answer> tags:
+
+<Article>
+{document}
+</Article>
+
+<Summary A>
+{sum_a}
+</Summary A>
+<Summary B>
+{sum_b}
+</Summary B>
+"""
