@@ -6,7 +6,9 @@ import torch
 import re
 import os
 from tqdm import tqdm, trange
-from template import CONSISTENCY_COT_PROMPT, RANKING_PROMPT, SCORING_PROMPT, SCORING_PROMPT_TAG
+import time
+from collections import deque
+from template import CONSISTENCY_COT_PROMPT, CONSISTENCY_PROMPT, RANKING_PROMPT, SCORING_PROMPT, SCORING_PROMPT_TAG, SCORING_PROMPT_TAG_COT, SUMMEVAL_PROMPT, SUMMEVAL_PROMPT_COT
 from sklearn.metrics import accuracy_score, balanced_accuracy_score
 import numpy as np
 import pandas as pd
@@ -26,6 +28,21 @@ import nltk
 
 # Load environment variables
 load_dotenv()
+
+class RateLimiter:
+  def __init__(self, max_requests=60, time_window=60):
+    self.max_requests = max_requests
+    self.time_window = time_window
+    self.requests = deque()
+  def wait_if_needed(self):
+    now = time.time()
+    while self.requests and self.requests[0] <= now - self.time_window:
+      self.requests.popleft()
+    if len(self.requests) >= self.max_requests:
+        sleep_time = self.requests[0] + self.time_window - now + 0.1
+        if sleep_time > 0:
+          time.sleep(sleep_time)
+    self.requests.append(now)
 
 # Download NLTK punkt tokenizer if not already available
 try:
@@ -144,7 +161,7 @@ def initialize_clients(name='gpt'):
 def most_frequent(List):
     return max(set(List), key=List.count)
 
-def consistency_evaluator_doctype(dataset, client, model_name='qwen'):
+def consistency_evaluator_doctype(dataset, client, model_name='qwen', type='COT'):
    """
       Evaluate the consistency of summaries against documents using a language model.
       Args:
@@ -154,24 +171,49 @@ def consistency_evaluator_doctype(dataset, client, model_name='qwen'):
       Returns:
           None
    """
+   rate_limiter = RateLimiter(max_requests=59, time_window=60)
+   failed_requests = []
    predictions = []
    true_labels = []
+   if type == "COT":
+      prompt = CONSISTENCY_COT_PROMPT
+   else:
+      prompt = CONSISTENCY_PROMPT
    with trange(len(dataset)) as t:
       for i in t:
-         response = client.chat.completions.create(
-            model=model_name,
-            messages=[
-               {"role": "system", "content": "You are a helpful assistant"},
-               {"role": "user", "content": CONSISTENCY_COT_PROMPT.format(article=dataset[i]['document'], summary=dataset[i]['claim'])},
-            ],
-            stream=False
-         )
-         prediction = extract_answer_qwen(response.choices[0].message.content)
-         predictions.append(prediction)
-         true_labels.append(dataset[i]['label'])
-         print(response.choices[0].message.content)
-         print('-'*100)
-         print(f"""Prediction: {prediction} True Label: {dataset[i]['label']}""")
+         max_retries = 3
+         retry_count = 0
+         success = False
+         while retry_count < max_retries:
+            try:
+              rate_limiter.wait_if_needed()
+              response = client.chat.completions.create(
+                  model=model_name,
+                  messages=[
+                    {"role": "system", "content": "You are a helpful assistant"},
+                    {"role": "user", "content": prompt.format(article=dataset[i]['document'], summary=dataset[i]['claim'])},
+                  ],
+                  stream=False
+              )
+              prediction = extract_answer_qwen(response.choices[0].message.content)
+              predictions.append(prediction)
+              true_labels.append(dataset[i]['label'])
+              print(response.choices[0].message.content)
+              print('-'*100)
+              print(f"""Prediction: {prediction} True Label: {dataset[i]['label']}""")
+              success = True
+              break
+            except Exception as e:
+               retry_count += 1
+               error_msg = f"Request failed for item {i}, attempt {retry_count}/{max_retries}"
+               print(error_msg)
+               if retry_count < max_retries:
+                  wait_time = 2 ** retry_count
+                  print(f"Retrying in {wait_time} seconds...")
+                  time.sleep(wait_time)
+         if not success:
+            print(f"Failed to process item {i} after {max_retries} attempts. Skipping...")
+            failed_requests.append(i)
          if i%5 == 0 and i > 0:
             t.set_postfix(accuracy=balanced_accuracy_score(predictions, true_labels))
    print(f"Final Accuracy: {accuracy_score(predictions, true_labels)}")
@@ -721,7 +763,7 @@ def calculate_correlations_with_pandas(averages, df_ratings, metrics):
 
     return results
 
-def evaluate_correlation_llm(dataset, output_file='correlation_results.csv', model_name='deepseek-chat', llm_provider='dp'):
+def evaluate_correlation_llm(dataset, output_file='correlation_results.csv', model_name='deepseek-chat', llm_provider='dp', type="COT"):
     """
       Evaluate correlation between LLM predictions and human annotations
     """
@@ -730,12 +772,16 @@ def evaluate_correlation_llm(dataset, output_file='correlation_results.csv', mod
     EXPECTED_METRICS = ['coherence', 'consistency', 'fluency', 'relevance']
     ratings = defaultdict(list)
     pattern = re.compile(r"\*\*(\w+):\s*(\d+)\*\*")
+    if type == "COT":
+       prompt = SUMMEVAL_PROMPT_COT
+    else:
+       prompt = SUMMEVAL_PROMPT
     try:
         with trange(len(dataset)) as t:
           for i in t:
             messages = [
                 {"role": "system", "content": "You are a human annotator that rates the quality of summaries. You must provide a rating for Coherence, Consistency, Fluency, and Relevance on a scale of 1 to 5, in the format **Metric: Score**."},
-                {"role": "user", "content": f"Article: {dataset[i]['text']}\nSummary: {dataset[i]['decoded']}"}
+                {"role": "user", "content": prompt.format(article=dataset[i]['text'], summary=dataset[i]['decoded'])}
             ]
 
             # A dictionary to hold the results for just this one item
@@ -800,7 +846,7 @@ def evaluate_correlation_llm(dataset, output_file='correlation_results.csv', mod
     print(f"Results saved to {output_file}")
     return results_df
 
-def evaluate_ranking_consistency(dataset, model_name='deepseek-chat', llm_provider='dp', output_file='ranking_consistency_results.csv'):
+def evaluate_ranking_consistency(dataset, model_name='deepseek-chat', llm_provider='dp', output_file='ranking_consistency_results.csv', type="COT"):
     """
       Evaluate the ranking consistency of summaries using a language model.
       Args:
@@ -810,40 +856,111 @@ def evaluate_ranking_consistency(dataset, model_name='deepseek-chat', llm_provid
       Returns:
           None
     """
+    rate_limiter = RateLimiter(max_requests=59, time_window=60)
     client = initialize_clients(llm_provider)
     pattern = r'<Answer>\*{0,2}A\*{0,2}</Answer>'
     predictions = []
     true_labels = []
+    failed_requests = []
     print(f"Evaluating ranking consistency with model: {model_name}")
+    print(f"Using prompt type: {type}")
+    if type == "COT":
+        prompt = SCORING_PROMPT_TAG_COT
+    else:
+        prompt = SCORING_PROMPT_TAG
     with trange(len(dataset)) as t:
       for i in t:
+        max_retries = 3
+        retry_count = 0
+        success = False
         document = dataset[i]['input']
         sum_a = dataset[i]['list_choices'][0]
         sum_b = dataset[i]['list_choices'][1]
-        response5 = client.chat.completions.create(
-          model=model_name,
-          messages=[
-              {"role": "system", "content": "You are a helpful assistant"},
-              {"role": "user", "content": SCORING_PROMPT_TAG.format(document=document, sum_a=sum_a, sum_b=sum_b)},
-          ],
-          stream=False
-        )
-        response = response5.choices[0].message.content
-        if re.search(pattern, response):
-          predicted = 0
-        else:
-          predicted = 1
-        predictions.append(predicted)
-        true_label = dataset[i]['lbl']
-        true_labels.append(true_label)
-        print(response)
-        print('-'*100)
-        print(f"Predicted: {predicted} True: {true_label}")
+        while retry_count < max_retries:
+           try:
+              rate_limiter.wait_if_needed()
+              response5 = client.chat.completions.create(
+                model=model_name,
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant"},
+                    {"role": "user", "content": prompt.format(document=document, sum_a=sum_a, sum_b=sum_b)},
+                ],
+                stream=False
+              )
+              response = response5.choices[0].message.content
+              if re.search(pattern, response):
+                predicted = 0
+              else:
+                predicted = 1
+              predictions.append(predicted)
+              true_label = dataset[i]['lbl']
+              true_labels.append(true_label)
+              print(response)
+              print('-'*100)
+              print(f"Predicted: {predicted} True: {true_label}")
+              success = True
+              break
+           except Exception as e:
+              retry_count += 1
+              error_msg = f"Request failed for item {i}, attempt {retry_count}/{max_retries}: {str(e)}"
+              print(error_msg)
+              if retry_count < max_retries:
+                  wait_time = 2 ** retry_count
+                  print(f"Retrying in {wait_time} seconds...")
+                  time.sleep(wait_time)
+        if not success:
+            print(f"Failed to process item {i} after {max_retries} attempts. Skipping...")
+            failed_requests.append(i)
         if i % 5 == 0 and i > 0:
-          t.set_postfix(acc=balanced_accuracy_score(predictions, true_labels))
-    results = pd.DataFrame({'model_name': model_name, 'balanced_accuracy': balanced_accuracy_score(predictions, true_labels), 'accuracy': accuracy_score(predictions, true_labels)})
+          t.set_postfix(acc=balanced_accuracy_score(predictions, true_labels), failed=len(failed_requests))
+    results = pd.DataFrame({'model_name': model_name, 'balanced_accuracy': balanced_accuracy_score(predictions, true_labels), 'accuracy': accuracy_score(predictions, true_labels)}, index=[0])
     results.to_csv(output_file, index=False)
     print(f"Results saved to {output_file}")
     print(f"Final Accuracy: {accuracy_score(predictions, true_labels)}")
     print(f"Final Balanced Accuracy: {balanced_accuracy_score(predictions, true_labels)}")
     return results
+
+def evaluate_ranking_consistency_summac(dataset, output_file='summac_ranking_results.csv'):
+    from summac.model_summac import SummaCZS, SummaCConv
+    true_labels = []
+    predicted_zs = []
+    predicted_conv = []
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    model_zs = SummaCZS(granularity="sentence", model_name="vitc", device="cuda")
+    model_conv = SummaCConv(models=["vitc"], bins='percentile', granularity="sentence", nli_labels="e", device="cuda", start_file="default", agg="mean")
+    with trange(len(dataset)) as t:
+        for i in t:
+            document = dataset[i]['input']
+            sum_a = dataset[i]['list_choices'][0]
+            sum_b = dataset[i]['list_choices'][1]
+            score_zs_a = model_zs.score([document], [sum_a])
+            score_zs_b = model_zs.score([document], [sum_b])
+
+            score_conv_a = model_conv.score([document], [sum_a])
+            score_conv_b = model_conv.score([document], [sum_b])
+
+            if score_zs_a['scores'][0] > score_zs_b['scores'][0]:
+              predicted_zs.append(0)
+            else:
+              predicted_zs.append(1)
+            if score_conv_a['scores'][0] > score_conv_b['scores'][0]:
+              predicted_conv.append(0)
+            else:
+              predicted_conv.append(1)
+            true_labels.append(dataset[i]['lbl'])
+            
+            if i > 0:
+                balanced_acc_zs = balanced_accuracy_score(predicted_zs, true_labels)
+                balanced_acc_conv = balanced_accuracy_score(predicted_conv, true_labels)
+                t.set_postfix(balanced_zs=f"{balanced_acc_zs:.4f}", balanced_conv=f"{balanced_acc_conv:.4f}")
+
+    final_balanced_accuracy_zs = balanced_accuracy_score(true_labels, predicted_zs)
+    final_balanced_accuracy_conv = balanced_accuracy_score(true_labels, predicted_conv)
+    print(f"Final Balanced Accuracy (ZS): {final_balanced_accuracy_zs:.4f}")
+    print(f"Final Balanced Accuracy (Conv): {final_balanced_accuracy_conv:.4f}")
+    results = pd.DataFrame({
+        'model_name': ['SummaCZS', 'SummaCConv'],
+        'balanced_accuracy': [final_balanced_accuracy_zs, final_balanced_accuracy_conv],
+        'accuracy': [accuracy_score(true_labels, predicted_zs), accuracy_score(true_labels, predicted_conv)]
+    })
+    results.to_csv(output_file, index=False)

@@ -1,13 +1,15 @@
-from helpers import evaluate_ranking_consistency, load_dataset_from_dir, initialize_clients, consistency_evaluator_doctype, ranking_evaluator, bartscore_eval, evaluate_ner_on_factcc_dataset, evaluate_additional_metrics, evaluate_correlation_llm
+from helpers import evaluate_ranking_consistency, evaluate_ranking_consistency_summac, load_dataset_from_dir, initialize_clients, consistency_evaluator_doctype, ranking_evaluator, bartscore_eval, evaluate_ner_on_factcc_dataset, evaluate_additional_metrics, evaluate_correlation_llm
 from datasets import load_dataset
 import argparse
 
 parser = argparse.ArgumentParser(description="arguments for evaluatiing factuality")
 parser.add_argument("--dataset_name", type=str, default="cogensumm", help="Name of the dataset to evaluate(cogensumm, factcc, polytope, summeval, xsumfaith, frank)")
 parser.add_argument("--llm_provider", type=str, default="dp", help="Name of the model to use for evaluation(qwen, gpt, dp, lg, llama)")
+parser.add_argument("--trad_method", type=str, default="", help="Name of the traditional method to use for evaluation (summac, bartscore, ner_consistency)")
 parser.add_argument("--model_name", type=str, default="deepseek-chat", help="Name of the model to use for evaluation")
 parser.add_argument("--task", type=str, default="consistency", help="Task to evaluate (e.g., consistency, ranking, )")
 parser.add_argument("--split", type=str, default='val', help="Split of the dataset to use for evaluation (e.g., train, val, test)")
+parser.add_argument('--type', type=str, default='COT', help='Type of evaluation to perform (COT, no_COT)')
 args = parser.parse_args()
 
 
@@ -39,7 +41,11 @@ if __name__ == "__main__":
     elif args.task == 'correlation_llm':
         dataset = load_dataset_from_dir("data/model_annotations.aligned.paired.jsonl")
         results_df = evaluate_correlation_llm(dataset, model_name=args.model_name, llm_provider=args.llm_provider)
+    elif args.task == 'ranking' and args.dataset_name == "fib" and len(args.trad_method) > 0 and args.trad_method == "summac":
+        dataset = load_dataset("r-three/fib", split='test')
+        dataset = dataset.shuffle(seed=32).select(range(600))
+        results_df = evaluate_ranking_consistency_summac(dataset, model_name=args.model_name, llm_provider=args.llm_provider, output_file='fib_ranking_results.csv')
     elif args.task == 'ranking' and args.dataset_name == "fib":
         dataset = load_dataset("r-three/fib", split='test')
         dataset = dataset.shuffle(seed=32).select(range(600))
-        results_df = evaluate_ranking_consistency(dataset, model_name=args.model_name, llm_provider=args.llm_provider, output_file='fib_ranking_results.csv')
+        results_df = evaluate_ranking_consistency(dataset, model_name=args.model_name, llm_provider=args.llm_provider, output_file='fib_ranking_results.csv', type=args.type)

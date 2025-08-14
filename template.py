@@ -12,6 +12,20 @@ Explain your reasoning step by step first, and then answer (consistent or incons
 Answer:
 """
 
+CONSISTENCY_PROMPT = \
+"""
+Decide if the following summary is consistent with the corresponding article. 
+Note that consistency means all information in the summary is supported by the article.
+Explain your reasoning step by step first, and then answer (consistent or inconsistent) at the end:
+<Article>
+{article}
+</Article>
+<Summary>
+{summary}
+</Summary>
+Answer:
+"""
+
 RANKING_PROMPT = \
 """
 Your task is to rate the factual consistency of the provided summary against the source article.A score of 1.0 means the summary is perfectly factual, containing no information that contradicts or is not supported by the article.
@@ -35,7 +49,32 @@ or "B"
 <Summary B> {summary_b} </Summary B>
 Answer:
 """
+SUMMEVAL_PROMPT_COT = \
+"""
+Do not provide any reasoning. Article: {article}\nSummary: {summary}
+"""
+SUMMEVAL_PROMPT = \
+"""
+Article: {article}\nSummary: {summary}
+"""
 SCORING_PROMPT_TAG = \
+"""
+Decide which one of the following summary is consistent with the corresponding article.
+Note that consistency means all information in the summary is supported by the article.
+Just give your answer in <Answer>(A or B)</Answer> tags:
+
+<Article>
+{document}
+</Article>
+
+<Summary A>
+{sum_a}
+</Summary A>
+<Summary B>
+{sum_b}
+</Summary B>
+"""
+SCORING_PROMPT_TAG_COT = \
 """
 Decide which one of the following summary is consistent with the corresponding article.
 Note that consistency means all information in the summary is supported by the article.
