@@ -1,2 +1,2 @@
 model_name,balanced_accuracy,accuracy
-lgai/exaone-deep-32b,0.7600932629770524,0.76
+meta-llama/Llama-3.3-70B-Instruct-Turbo,0.7921217327279421,0.79

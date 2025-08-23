@@ -51,11 +51,11 @@ Answer:
 """
 SUMMEVAL_PROMPT_COT = \
 """
-Do not provide any reasoning. Article: {article}\nSummary: {summary}
+Article: {article}\nSummary: {summary}
 """
 SUMMEVAL_PROMPT = \
 """
-Article: {article}\nSummary: {summary}
+Do not provide any reasoning. Article: {article}\nSummary: {summary}
 """
 SCORING_PROMPT_TAG = \
 """

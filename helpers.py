@@ -219,6 +219,64 @@ def consistency_evaluator_doctype(dataset, client, model_name='qwen', type='COT'
    print(f"Final Accuracy: {accuracy_score(predictions, true_labels)}")
    print(f"Final Balanced Accuracy: {balanced_accuracy_score(predictions, true_labels)}")
 
+def consistency_evaluator_factcc(dataset, client, model_name='qwen', type='COT'):
+   """
+      Evaluate the consistency of summaries against documents using a language model.
+      Args:
+          dataset (Dataset): The dataset containing documents and summaries.
+          client: The initialized LLM client.
+          model_name (str): The name of the model to use for evaluation.
+      Returns:
+          None
+   """
+   rate_limiter = RateLimiter(max_requests=59, time_window=60)
+   failed_requests = []
+   predictions = []
+   true_labels = []
+   if type == "COT":
+      prompt = CONSISTENCY_COT_PROMPT
+   else:
+      prompt = CONSISTENCY_PROMPT
+   with trange(len(dataset)) as t:
+      for i in t:
+         max_retries = 3
+         retry_count = 0
+         success = False
+         while retry_count < max_retries:
+            try:
+              rate_limiter.wait_if_needed()
+              response = client.chat.completions.create(
+                  model=model_name,
+                  messages=[
+                    {"role": "system", "content": "You are a helpful assistant"},
+                    {"role": "user", "content": prompt.format(article=dataset[i]['text'], summary=dataset[i]['claim'])},
+                  ],
+                  stream=False
+              )
+              prediction = extract_answer_qwen(response.choices[0].message.content)
+              predictions.append(prediction)
+              true_labels.append(1 if dataset[i]['label'] == "CORRECT" else 0)
+              print(response.choices[0].message.content)
+              print('-'*100)
+              print(f"""Prediction: {prediction} True Label: {dataset[i]['label']}""")
+              success = True
+              break
+            except Exception as e:
+               retry_count += 1
+               error_msg = f"Request failed for item {i}, attempt {retry_count}/{max_retries}"
+               print(error_msg)
+               if retry_count < max_retries:
+                  wait_time = 2 ** retry_count
+                  print(f"Retrying in {wait_time} seconds...")
+                  time.sleep(wait_time)
+         if not success:
+            print(f"Failed to process item {i} after {max_retries} attempts. Skipping...")
+            failed_requests.append(i)
+         if i%5 == 0 and i > 0:
+            t.set_postfix(accuracy=balanced_accuracy_score(predictions, true_labels))
+   print(f"Final Accuracy: {accuracy_score(predictions, true_labels)}")
+   print(f"Final Balanced Accuracy: {balanced_accuracy_score(predictions, true_labels)}")
+
 
 def ranking_evaluator(dataset, client, model_name='deepseek-chat'):
    """
@@ -776,6 +834,7 @@ def evaluate_correlation_llm(dataset, output_file='correlation_results.csv', mod
        prompt = SUMMEVAL_PROMPT_COT
     else:
        prompt = SUMMEVAL_PROMPT
+    print(f"Starting Correlation Evaluation with {model_name} and llm_provider {llm_provider} and prompt type {type}")
     try:
         with trange(len(dataset)) as t:
           for i in t:

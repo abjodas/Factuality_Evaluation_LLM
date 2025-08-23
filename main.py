@@ -1,4 +1,4 @@
-from helpers import evaluate_ranking_consistency, evaluate_ranking_consistency_summac, load_dataset_from_dir, initialize_clients, consistency_evaluator_doctype, ranking_evaluator, bartscore_eval, evaluate_ner_on_factcc_dataset, evaluate_additional_metrics, evaluate_correlation_llm
+from helpers import evaluate_ranking_consistency, evaluate_ranking_consistency_summac, load_dataset_from_dir, initialize_clients, consistency_evaluator_doctype, ranking_evaluator, bartscore_eval, evaluate_ner_on_factcc_dataset, evaluate_additional_metrics, evaluate_correlation_llm, consistency_evaluator_factcc
 from datasets import load_dataset
 import argparse
 
@@ -15,9 +15,12 @@ args = parser.parse_args()
 
 
 if __name__ == "__main__":
-    if (args.dataset_name == "cogensumm" or args.dataset_name == "factcc" or args.dataset_name == "polytope" or args.dataset_name == "summeval" or args.dataset_name == "xsumfaith") and args.task == "consistency":
+    if (args.dataset_name == "cogensumm") and args.task == "consistency":
         dataset = load_dataset_from_dir(f"data/{args.dataset_name}_{args.split}.jsonl", type='json', split='train')
         consistency_evaluator_doctype(dataset, client=initialize_clients(args.llm_provider), model_name=args.model_name)
+    elif args.dataset_name == 'factcc' and args.task == 'consistency':
+        dataset = load_dataset("mtc/factcc_annotated_eval_data", split=args.split)
+        consistency_evaluator_factcc(dataset, client=initialize_clients(args.llm_provider), model_name=args.model_name)
     elif args.task == "ranking" and args.dataset_name == "frank":
         dataset = load_dataset_from_dir(f"data/benchmark_data.json", type='json', split='train')
         ranking_evaluator(dataset, client=initialize_clients(args.llm_provider), model_name=args.model_name)
@@ -39,8 +42,9 @@ if __name__ == "__main__":
         dataset = load_dataset_from_dir("data/model_annotations.aligned.paired.jsonl")
         evaluate_additional_metrics(dataset)
     elif args.task == 'correlation_llm':
+        print("Correlation LLm")
         dataset = load_dataset_from_dir("data/model_annotations.aligned.paired.jsonl")
-        results_df = evaluate_correlation_llm(dataset, model_name=args.model_name, llm_provider=args.llm_provider)
+        results_df = evaluate_correlation_llm(dataset, model_name=args.model_name, llm_provider=args.llm_provider, type=args.type)
     elif args.task == 'ranking' and args.dataset_name == "fib" and len(args.trad_method) > 0 and args.trad_method == "summac":
         dataset = load_dataset("r-three/fib", split='test')
         dataset = dataset.shuffle(seed=32).select(range(600))
