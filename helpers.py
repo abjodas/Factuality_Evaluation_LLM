@@ -322,24 +322,40 @@ def ranking_evaluator(dataset, client, model_name='deepseek-chat'):
    print(f"Spearman Correlation (r): {spearman_corr:.4f}")
 
 def bartscore_eval(dataset):
-   metrics = ['coherence', 'consistency', 'fluency', 'relevance']
-   averages = {metric: [] for metric in metrics}
+    metrics = ['coherence', 'consistency', 'fluency', 'relevance']
+    averages = {metric: [] for metric in metrics}
 
-   for item in dataset:
-      annotations = item.get('expert_annotations', [])
-      if not annotations:  
-         for metric in metrics:
-               averages[metric].append(None) 
-         continue
+    for item in dataset:
+        annotations = item.get('expert_annotations', [])
+        if not annotations:  
+          for metric in metrics:
+                averages[metric].append(None) 
+          continue
 
-      num_annotations = len(annotations)
-      for metric in metrics:
-         total_score = sum(anno[metric] for anno in annotations)
-         averages[metric].append(total_score / num_annotations)
-   bartscores = load_dataset('json', data_files='/data/bartscore_results.jsonl', split='train')
-   bartscores_list = [item['average_bartscore'] for item in bartscores]
-   print(f"The spearman correlation between BARTScore and human scores is: {spearmanr(bartscores_list, human_scores)}")
-   print(f"The pearson correlation between BARTScore and human scores is: {pearsonr(bartscores_list, human_scores)}")
+        num_annotations = len(annotations)
+        for metric in metrics:
+          total_score = sum(anno[metric] for anno in annotations)
+          averages[metric].append(total_score / num_annotations)
+    bartscores = load_dataset('json', data_files='/data/bartscore_results.jsonl', split='train')
+    bartscores_list = [item['average_bartscore'] for item in bartscores]
+    human_scores = []
+    for i in range(len(averages['coherence'])):
+        if averages['coherence'][i] is None:
+            human_scores.append(None)
+        else:
+            score_sum = sum(averages[metric][i] for metric in metrics if averages[metric][i] is not None)
+            human_scores.append(score_sum / len(metrics))
+    
+    # Filter out None values for correlation
+    valid_pairs = [(b, h) for b, h in zip(bartscores_list, human_scores) if h is not None]
+    if not valid_pairs:
+        print("No valid data pairs for correlation")
+        return
+        
+    bart_valid, human_valid = zip(*valid_pairs)
+    
+    print(f"The spearman correlation between BARTScore and human scores is: {spearmanr(bart_valid, human_valid)}")
+    print(f"The pearson correlation between BARTScore and human scores is: {pearsonr(bart_valid, human_valid)}")
 
 class NERConsistencyEvaluator:
   def __init__(self, model_name: str="en_core_web_sm"):
@@ -1023,3 +1039,77 @@ def evaluate_ranking_consistency_summac(dataset, output_file='summac_ranking_res
         'accuracy': [accuracy_score(true_labels, predicted_zs), accuracy_score(true_labels, predicted_conv)]
     })
     results.to_csv(output_file, index=False)
+
+def evaluate_ranking_consistency_tldr(dataset, model_name='deepseek-chat', llm_provider='dp', output_file='ranking_consistency_results.csv', type="COT"):
+    """
+      Evaluate the ranking consistency of summaries using a language model.
+      Args:
+          dataset (Dataset): The dataset containing articles and summaries.
+          model_name (str): The name of the model to use for evaluation.
+          llm_provider (str): The provider of the LLM (e.g., 'dp', 'gpt').
+      Returns:
+          None
+    """
+    rate_limiter = RateLimiter(max_requests=59, time_window=60)
+    client = initialize_clients(llm_provider)
+    pattern = r'<Answer>\*{0,2}A\*{0,2}</Answer>'
+    predictions = []
+    true_labels = []
+    failed_requests = []
+    print(f"Evaluating ranking consistency with model: {model_name}")
+    print(f"Using prompt type: {type}")
+    if type == "COT":
+        prompt = SCORING_PROMPT_TAG_COT
+    else:
+        prompt = SCORING_PROMPT_TAG
+    with trange(len(dataset)) as t:
+      for i in t:
+        max_retries = 3
+        retry_count = 0
+        success = False
+        document = dataset[i]['post']
+        sum_a = dataset[i]['summaries'][0]['text']
+        sum_b = dataset[i]['summaries'][1]['text']
+        while retry_count < max_retries:
+           try:
+              rate_limiter.wait_if_needed()
+              response5 = client.chat.completions.create(
+                model=model_name,
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant"},
+                    {"role": "user", "content": prompt.format(document=document, sum_a=sum_a, sum_b=sum_b)},
+                ],
+                stream=False
+              )
+              response = response5.choices[0].message.content
+              if re.search(pattern, response):
+                predicted = 0
+              else:
+                predicted = 1
+              predictions.append(predicted)
+              true_label = dataset[i]['choice']
+              true_labels.append(true_label)
+              print(response)
+              print('-'*100)
+              print(f"Predicted: {predicted} True: {true_label}")
+              success = True
+              break
+           except Exception as e:
+              retry_count += 1
+              error_msg = f"Request failed for item {i}, attempt {retry_count}/{max_retries}: {str(e)}"
+              print(error_msg)
+              if retry_count < max_retries:
+                  wait_time = 2 ** retry_count
+                  print(f"Retrying in {wait_time} seconds...")
+                  time.sleep(wait_time)
+        if not success:
+            print(f"Failed to process item {i} after {max_retries} attempts. Skipping...")
+            failed_requests.append(i)
+        if i % 5 == 0 and i > 0:
+          t.set_postfix(acc=balanced_accuracy_score(predictions, true_labels), failed=len(failed_requests))
+    results = pd.DataFrame({'model_name': model_name, 'balanced_accuracy': balanced_accuracy_score(predictions, true_labels), 'accuracy': accuracy_score(predictions, true_labels)}, index=[0])
+    results.to_csv(output_file, index=False)
+    print(f"Results saved to {output_file}")
+    print(f"Final Accuracy: {accuracy_score(predictions, true_labels)}")
+    print(f"Final Balanced Accuracy: {balanced_accuracy_score(predictions, true_labels)}")
+    return results

@@ -53,3 +53,6 @@ if __name__ == "__main__":
         dataset = load_dataset("r-three/fib", split='test')
         dataset = dataset.shuffle(seed=32).select(range(600))
         results_df = evaluate_ranking_consistency(dataset, model_name=args.model_name, llm_provider=args.llm_provider, output_file='fib_ranking_results.csv', type=args.type)
+    elif args.task == 'ranking' and args.dataset_name == "tldr":
+        dataset = load_dataset('json', data_files="data/batch18.json", split='train')
+        results_df = evaluate_ranking_consistency(dataset, model_name=args.model_name, llm_provider=args.llm_provider, output_file='tldr_ranking_results.csv', type=args.type)
