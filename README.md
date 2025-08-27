@@ -2,96 +2,139 @@
 
 The main goal of this project is to understand the ability of Large Language Models to judge whether a summary is consistent with a document or not. For a summary to be consistent, there must not be any extra information present in it which was not present in the document.
 
-# Instructions
+## Quick Start
 
-To run the project, simply clone or download this repository and then install the requirements using - 
+### Installation
 
-`pip install -r requirements.txt`
+Clone or download this repository and install the requirements:
 
-You need to make a .env file where you specify your LLM api key. Make sure you name it gpt_api_key for **openai api key**, **dp_api_key** for deepseek api key, **together_api_key** for together api key and **qwen_api_key** for qwen api key.
+```bash
+pip install -r requirements.txt
+```
 
-You can specify your desired LLM provider using the argument **--llm_provider**(gpt, dp, llama, lg, qwen) and the model name using the argument **--model_name**(eg:-gpt-4.1-mini, deepseek-chat etc.).
+### Environment Setup
 
----
-You can then choose to run either the consistency evaluation task or the ranking task by passing "consistency" in the **--task** argument.
-1. **Consistency** - For the consistency evaluation task, you have the option to select *cogensumm, factcc, polytope, xsumfaith* and *summeval* datasets. You can also select the split you want to choose for this task(*test* or *val*). The jsonl files required for the evaluation are given in the data folder and you do not need to download any extra files. 
-2. **Ranking** - For the ranking evaluation task, you can either specify *frank* in the argument **--dataset_name** or *ranking* in the argument **--task**, specifying both will not alter this behaviour.
+Create a `.env` file with your LLM API keys:
 
-# Output
-1. **Consistency** - You will be able to see the predictions while it is running and the final accuracy score and the balanced accuracy score once it finishes the one and only epoch.
-2. **Ranking** - You will be able to see the predicted score while it is running and the Pearson Correlation Score (ρ) and Spearman Correlation Score (r) once it has finished running.
+```env
+gpt_api_key=your_openai_api_key
+dp_api_key=your_deepseek_api_key
+together_api_key=your_together_api_key
+qwen_api_key=your_qwen_api_key
+```
 
-# Website
-A website has been designed based on this project and you can access it [here](https://consistency-checker.onrender.com/).
+### Basic Usage
 
-# Task Combinations for Factuality Evaluation
+Choose your LLM provider with `--llm_provider` and model with `--model_name`:
+
+```bash
+python main.py --task consistency --dataset_name factcc --llm_provider dp --model_name deepseek-chat
+```
 
 ## Available Arguments
 
 | Argument | Options | Default | Description |
 |----------|---------|---------|-------------|
-| `dataset_name` | `cogensumm`, `factcc`, `polytope`, `summeval`, `xsumfaith`, `frank`, `fib` | `cogensumm` | Dataset to evaluate |
-| `llm_provider` | `qwen`, `gpt`, `dp`, `lg`, `llama` | `dp` | LLM provider |
-| `trad_method` | `summac`, `bartscore`, `ner_consistency` | `""` | Traditional evaluation method |
-| `model_name` | Any model name | `deepseek-chat` | Specific model name |
-| `task` | `consistency`, `ranking`, `bartscore`, `ner_consistency`, `correlation`, `correlation_llm` | `consistency` | Task to perform |
-| `split` | `train`, `val`, `test` | `val` | Dataset split |
-| `type` | `COT`, `no_COT` | `COT` | Chain-of-thought or direct prompting |
+| `--dataset_name` | `cogensumm`, `factcc`, `polytope`, `summeval`, `xsumfaith`, `frank`, `fib` | `cogensumm` | Dataset to evaluate |
+| `--llm_provider` | `qwen`, `gpt`, `dp`, `lg`, `llama` | `dp` | LLM provider |
+| `--trad_method` | `summac`, `bartscore`, `ner_consistency` | `""` | Traditional evaluation method |
+| `--model_name` | Any model name | `deepseek-chat` | Specific model name |
+| `--task` | `consistency`, `ranking`, `bartscore`, `ner_consistency`, `correlation`, `correlation_llm` | `consistency` | Task to perform |
+| `--split` | `train`, `val`, `test` | `val` | Dataset split |
+| `--type` | `COT`, `no_COT` | `COT` | Chain-of-thought or direct prompting |
 
-## Valid Task Combinations
+### LLM Provider Codes
 
-| Task | Dataset(s) | Required Args | Optional Args | Description |
-|------|------------|---------------|---------------|-------------|
-| **consistency** | `cogensumm`, `factcc`, `polytope`, `summeval`, `xsumfaith` | `--dataset_name`, `--split` | `--llm_provider`, `--model_name`, `--type` | Evaluate factual consistency using LLMs |
-| **ranking** | `frank` | `--dataset_name frank` | `--llm_provider`, `--model_name` | Rank summaries by factuality (FRANK dataset) |
-| **ranking** | `fib` | `--dataset_name fib` | `--llm_provider`, `--model_name`, `--type` | Binary ranking consistency (FIB dataset) |
-| **ranking** | `fib` + SummaC | `--dataset_name fib`, `--trad_method summac` | `--model_name`, `--llm_provider` | Binary ranking using SummaC method |
-| **bartscore** | Fixed dataset | None required | None | Evaluate using BARTScore method |
-| **ner_consistency** | `factcc`, `polytope` | `--dataset_name` | `--split` | Named Entity Recognition consistency |
-| **correlation** | Fixed dataset | None required | None | Correlation analysis with multiple metrics |
-| **correlation_llm** | Fixed dataset | None required | `--model_name`, `--llm_provider`, `--type` | LLM-based correlation analysis |
+- `dp` = DeepSeek
+- `gpt` = OpenAI GPT  
+- `qwen` = Qwen
+- `lg` = Together API
+- `llama` = Llama via Together API
 
-## Example Commands
+## Task Types and Execution Paths
 
-### Consistency Evaluation
+### 1. Consistency Evaluation
+
+Evaluates whether summaries are factually consistent with source documents.
+
+#### Supported Datasets
+- **cogensumm**: Uses `consistency_evaluator_doctype()` function
+- **factcc**: Uses `consistency_evaluator_factcc()` function  
+- **polytope**, **summeval**, **xsumfaith**: Use standard consistency evaluation
+
+#### Example Commands
 ```bash
-# Basic consistency evaluation
-python main.py --task consistency --dataset_name factcc --split val --llm_provider dp --model_name deepseek-chat
+# CoGenSumm dataset
+python main.py --task consistency --dataset_name cogensumm --split val
 
-# With chain-of-thought prompting
-python main.py --task consistency --dataset_name polytope --type COT --llm_provider gpt --model_name gpt-4
+# FactCC dataset
+python main.py --task consistency --dataset_name factcc --split test --llm_provider gpt --model_name gpt-4
 
-# Without chain-of-thought
-python main.py --task consistency --dataset_name cogensumm --type no_COT --llm_provider qwen
+# With/without chain-of-thought
+python main.py --task consistency --dataset_name polytope --type COT
+python main.py --task consistency --dataset_name summeval --type no_COT
 ```
 
-### Ranking Tasks
+### 2. Ranking Tasks
+
+Ranks summaries by factuality or evaluates binary ranking consistency.
+
+#### FRANK Dataset Ranking
 ```bash
-# FRANK dataset ranking
 python main.py --task ranking --dataset_name frank --llm_provider dp --model_name deepseek-chat
+```
 
-# FIB dataset binary ranking
-python main.py --task ranking --dataset_name fib --llm_provider gpt --model_name gpt-4 --type COT
+#### FIB Dataset Binary Ranking
+```bash
+# Standard LLM-based ranking
+python main.py --task ranking --dataset_name fib --llm_provider gpt --model_name gpt-4
 
-# FIB dataset with SummaC
+# Using SummaC traditional method
 python main.py --task ranking --dataset_name fib --trad_method summac
 ```
 
-### Traditional Methods
+### 3. Traditional Methods
+
+#### Named Entity Recognition Consistency
 ```bash
-# NER consistency evaluation
+# FactCC dataset
 python main.py --task ner_consistency --dataset_name factcc --split test
+
+# Polytope dataset  
 python main.py --task ner_consistency --dataset_name polytope --split val
+```
 
-# BARTScore evaluation
+#### BARTScore Evaluation
+```bash
 python main.py --task bartscore
+```
 
-# Correlation analysis
+### 4. Correlation Analysis
+
+#### Traditional Metrics Correlation
+```bash
 python main.py --task correlation
+```
+
+#### LLM-based Correlation
+```bash
 python main.py --task correlation_llm --llm_provider dp --model_name deepseek-chat --type COT
 ```
 
-## Dataset-Task Compatibility Matrix
+## Implementation Details
+
+### File Paths and Data Loading
+
+The code uses these specific data paths:
+- CoGenSumm: `data/{dataset_name}_{split}.jsonl`
+- FactCC: Loaded via HuggingFace `mtc/factcc_annotated_eval_data`
+- FRANK: `data/benchmark_data.json`
+- BARTScore: `data/human_annotations.aligned.paired.jsonl`
+- Correlation: `data/model_annotations.aligned.paired.jsonl`
+- Polytope: `data/polytope_{split}.jsonl`
+- FIB: Loaded via HuggingFace `r-three/fib` (600 samples, seed=32)
+
+### Dataset-Task Compatibility Matrix
 
 | Dataset | consistency | ranking | bartscore | ner_consistency | correlation | correlation_llm |
 |---------|:-----------:|:-------:|:---------:|:---------------:|:-----------:|:---------------:|
@@ -102,12 +145,51 @@ python main.py --task correlation_llm --llm_provider dp --model_name deepseek-ch
 | `xsumfaith` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | `frank` | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | `fib` | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Fixed datasets | ❌ | ❌ | ✅ | ❌ | ✅ | ✅ |
+| Fixed datasets* | ❌ | ❌ | ✅ | ❌ | ✅ | ✅ |
+
+*Fixed datasets use hardcoded file paths for specialized correlation and BARTScore tasks.
+
+## Output and Results
+
+### Consistency Evaluation
+- **Live feedback**: Predictions displayed during execution
+- **Final metrics**: Accuracy score and balanced accuracy score after completion
+
+### Ranking Tasks  
+- **Live feedback**: Predicted scores shown during execution
+- **Final metrics**: Pearson Correlation Score (ρ) and Spearman Correlation Score (r)
+- **Output files**: Results saved to CSV files (e.g., `fib_ranking_results.csv`)
+
+### NER Consistency
+- **Best threshold**: Optimal threshold value for classification
+- **Results DataFrame**: Detailed performance metrics
+
+## Advanced Examples
+
+### Complete Evaluation Pipeline
+```bash
+# Evaluate multiple datasets with different models
+python main.py --task consistency --dataset_name factcc --llm_provider dp --model_name deepseek-chat --type COT
+python main.py --task consistency --dataset_name cogensumm --llm_provider gpt --model_name gpt-4 --type no_COT
+python main.py --task ranking --dataset_name fib --llm_provider qwen --model_name qwen-max
+
+# Traditional method comparison
+python main.py --task ner_consistency --dataset_name factcc --split test
+python main.py --task ranking --dataset_name fib --trad_method summac
+```
+
+### Correlation Studies
+```bash
+# Compare different evaluation approaches
+python main.py --task correlation
+python main.py --task correlation_llm --type COT --llm_provider dp --model_name deepseek-chat
+```
+
+## Web Interface
+
+A web-based interface for this project is available at: [https://consistency-checker.onrender.com/](https://consistency-checker.onrender.com/)
 
 ## Notes
 
-- **Fixed datasets**: Some tasks use hardcoded dataset paths (`human_annotations.aligned.paired.jsonl`, `model_annotations.aligned.paired.jsonl`)
-- **LLM Providers**: `dp` = DeepSeek, `gpt` = OpenAI GPT, `qwen` = Qwen, `lg` = Together API, `llama` = Llama via Together
-- **Chain-of-Thought**: `COT` enables reasoning steps, `no_COT` uses direct prompting
-- **Traditional Methods**: `summac`, `bartscore`, `ner_consistency` don't require LLM providers
-- **Output Files**: Results are saved to CSV files with names based on the task and method used
+- **Chain-of-Thought**: `COT` enables step-by-step reasoning, `no_COT` uses direct prompting
+- **Data Requirements**: Most datasets are included in the `
