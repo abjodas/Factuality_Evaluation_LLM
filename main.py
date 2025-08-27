@@ -1,4 +1,4 @@
-from helpers import evaluate_ranking_consistency, evaluate_ranking_consistency_summac, load_dataset_from_dir, initialize_clients, consistency_evaluator_doctype, ranking_evaluator, bartscore_eval, evaluate_ner_on_factcc_dataset, evaluate_additional_metrics, evaluate_correlation_llm, consistency_evaluator_factcc
+from helpers import evaluate_ranking_consistency, evaluate_ranking_consistency_summac, load_dataset_from_dir, initialize_clients, consistency_evaluator_doctype, ranking_evaluator, bartscore_eval, evaluate_ner_on_factcc_dataset, evaluate_additional_metrics, evaluate_correlation_llm, consistency_evaluator_factcc, evaluate_ranking_consistency_tldr
 from datasets import load_dataset
 import argparse
 
@@ -55,4 +55,4 @@ if __name__ == "__main__":
         results_df = evaluate_ranking_consistency(dataset, model_name=args.model_name, llm_provider=args.llm_provider, output_file='fib_ranking_results.csv', type=args.type)
     elif args.task == 'ranking' and args.dataset_name == "tldr":
         dataset = load_dataset('json', data_files="data/batch18.json", split='train')
-        results_df = evaluate_ranking_consistency(dataset, model_name=args.model_name, llm_provider=args.llm_provider, output_file='tldr_ranking_results.csv', type=args.type)
+        results_df = evaluate_ranking_consistency_tldr(dataset, model_name=args.model_name, llm_provider=args.llm_provider, output_file='tldr_ranking_results.csv', type=args.type)
