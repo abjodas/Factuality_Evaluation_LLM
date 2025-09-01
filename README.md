@@ -207,35 +207,6 @@ A web-based interface for this project is available at: [https://consistency-che
 - **Chain-of-Thought**: `COT` enables step-by-step reasoning, `no_COT` uses direct prompting
 - **Data Requirements**: Most datasets are included in the `
 
-### Dataset-Task Compatibility Matrix
-
-| Dataset          | consistency | ranking | bartscore | ner_consistency | correlation | correlation_llm |
-| ---------------- | :---------: | :-----: | :-------: | :-------------: | :---------: | :-------------: |
-| `cogensumm`      |     ✅      |   ❌    |    ❌     |       ❌        |     ❌      |       ❌        |
-| `factcc`         |     ✅      |   ❌    |    ❌     |       ✅        |     ❌      |       ❌        |
-| `polytope`       |     ❌      |   ❌    |    ❌     |       ✅        |     ❌      |       ❌        |
-| `summeval`       |     ❌      |   ❌    |    ❌     |       ❌        |     ❌      |       ❌        |
-| `xsumfaith`      |     ❌      |   ❌    |    ❌     |       ❌        |     ❌      |       ❌        |
-| `frank`          |     ❌      |   ✅    |    ❌     |       ❌        |     ❌      |       ❌        |
-| `fib`            |     ❌      |   ✅    |    ❌     |       ❌        |     ❌      |       ❌        |
-| `tldr`           |     ❌      |   ✅    |    ❌     |       ❌        |     ❌      |       ❌        |
-| Fixed datasets\* |     ❌      |   ❌    |    ✅     |       ❌        |     ✅      |       ✅        |
-
-\*Fixed datasets use hardcoded file paths for specialized correlation and BARTScore tasks:
-
-- **bartscore**: `data/human_annotations.aligned.paired.jsonl`
-- **correlation**: `data/model_annotations.aligned.paired.jsonl`
-- **correlation_llm**: `data/model_annotations.aligned.paired.jsonl`
-
-#### Key Changes:
-
-- **Added `tldr` dataset** with ranking task support (uses `evaluate_ranking_consistency_tldr()`)
-- **Updated consistency task** to reflect actual code implementation - only `cogensumm` and `factcc` have explicit handlers
-- **Polytope** only supports `ner_consistency`, not `consistency` task
-- **SummaC support** available for `fib` ranking via `--trad_method summac` parameter
-
-The updated table now accurately reflects the actual code paths and supported combinations in your evaluation framework.
-
 ## GRPO Training for Consistency Models
 
 ### Overview
