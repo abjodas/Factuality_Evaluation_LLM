@@ -140,14 +140,14 @@ The code uses these specific data paths:
 |---------|:-----------:|:-------:|:---------:|:---------------:|:-----------:|:---------------:|
 | `cogensumm` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | `factcc` | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
-| `polytope` | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
-| `summeval` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `xsumfaith` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `polytope` | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| `summeval` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `xsumfaith` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | `frank` | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | `fib` | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| `tldr` | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Fixed datasets* | ❌ | ❌ | ✅ | ❌ | ✅ | ✅ |
 
-*Fixed datasets use hardcoded file paths for specialized correlation and BARTScore tasks.
 
 ## Output and Results
 
