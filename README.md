@@ -218,8 +218,7 @@ This project includes Group Relative Policy Optimization (GRPO) training capabil
 Before running GRPO training, ensure you have the additional dependencies:
 
 ```bash
-pip install trl>=0.7.0
-pip install wandb  # Optional, for experiment tracking
+pip install -r requirements_grpo.txt
 ```
 
 ### Data Preparation
@@ -337,7 +336,7 @@ training_args = GRPOConfig(
 2. **Run the complete training script**:
 
 ```bash
-python grpo_consistency_training.py
+python grpo_training.py
 ```
 
 The script automatically handles:
