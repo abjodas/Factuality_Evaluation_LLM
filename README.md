@@ -140,14 +140,19 @@ The code uses these specific data paths:
 |---------|:-----------:|:-------:|:---------:|:---------------:|:-----------:|:---------------:|
 | `cogensumm` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | `factcc` | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
-| `polytope` | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
-| `summeval` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `xsumfaith` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `polytope` | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| `summeval` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `xsumfaith` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | `frank` | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | `fib` | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| `tldr` | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Fixed datasets* | ❌ | ❌ | ✅ | ❌ | ✅ | ✅ |
 
-*Fixed datasets use hardcoded file paths for specialized correlation and BARTScore tasks.
+#### Key Changes:
+- **Added `tldr` dataset** with ranking task support (uses `evaluate_ranking_consistency_tldr()`)
+- **Updated consistency task** to reflect actual code implementation - only `cogensumm` and `factcc` have explicit handlers
+- **Polytope** only supports `ner_consistency`, not `consistency` task
+- **SummaC support** available for `fib` ranking via `--trad_method summac` parameter
 
 ## Output and Results
 
