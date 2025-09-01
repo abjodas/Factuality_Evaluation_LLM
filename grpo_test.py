@@ -215,7 +215,7 @@ def run_single_experiment(seed, num_samples=1000, max_length=2048):
                 output = model.fast_generate(
                     text,
                     sampling_params=sampling_params,
-                    lora_request=model.load_lora("final_model_long"), # Download the model from https://drive.google.com/drive/folders/1FVSjAYQQ3R4aKor2WSeBj3vBvYYEEESD?usp=sharing
+                    lora_request=model.load_lora("outputs/final_model_long"), # Download the model from https://drive.google.com/drive/folders/1FVSjAYQQ3R4aKor2WSeBj3vBvYYEEESD?usp=sharing
                 )[0].outputs[0].text
                 print(f"Output: {output}", flush=True)
                 answer = extract_answer(output)

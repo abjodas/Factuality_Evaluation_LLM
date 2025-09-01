@@ -98,7 +98,7 @@ def add_labels(x):
     label = extract_answer_qwen(x['solutions'])
     return label
 
-df = pd.read_csv('cot_deepseek.csv', usecols=['problems', 'solutions'])
+df = pd.read_csv('data/cot_deepseek.csv', usecols=['problems', 'solutions'])
 df['labels'] = df.apply(add_labels, axis=1)
 
 def format_dataset(x):
@@ -113,7 +113,7 @@ def format_dataset(x):
         {"role" : "user",      "content" : problem},
         {"role" : "assistant", "content" : final_prompt},
     ]
-df = pd.read_csv('processed_cot_data.csv')
+df = pd.read_csv('data/processed_cot_data.csv')
 df["Messages"] = df.apply(format_dataset, axis=1)
 
 df['text'] = tokenizer.apply_chat_template(df["Messages"].values.tolist(), tokenize=False)
